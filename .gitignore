@@ -6,4 +6,10 @@ archive/
 z_leave/
 
 
+frontend/node_modules/
+
+frontend/.cache/
+node_modules/
+.cache/
+
 
