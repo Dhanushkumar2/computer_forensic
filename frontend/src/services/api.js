@@ -62,12 +62,19 @@ export const forensicAPI = {
   },
   getRecentCases: () => api.get('/cases/recent/'),
   
+  // Disk Images
+  getDiskImages: () => api.get('/disk-images/'),
+  
   // Cases
   getCases: (params) => api.get('/cases/', { params }),
   getCase: (id) => api.get(`/cases/${id}/`),
   createCase: (data) => api.post('/cases/', data),
   updateCase: (id, data) => api.put(`/cases/${id}/`, data),
   deleteCase: (id) => api.delete(`/cases/${id}/`),
+  getProcessingStatus: (caseId) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/processing-status/`);
+  },
   
   // Artifacts (use current case if caseId not provided)
   getArtifacts: (caseId, params) => {
@@ -152,6 +159,19 @@ export const forensicAPI = {
   getNetworkAnalysis: (caseId) => {
     const id = caseId || forensicAPI.getCurrentCaseId();
     return api.get(`/cases/${id}/network-analysis/`);
+  },
+  
+  // ML-based Anomaly Detection
+  analyzeAnomalies: (caseId) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.post(`/cases/${id}/analyze_anomalies/`);
+  },
+  getAnomalyDetails: (caseId, params) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/anomaly_details/`, { params });
+  },
+  getAnomalyServiceStatus: () => {
+    return api.get('/cases/anomaly_service_status/');
   },
   
   // Export

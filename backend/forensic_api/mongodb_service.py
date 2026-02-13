@@ -7,7 +7,10 @@ from datetime import datetime, timedelta
 from django.conf import settings
 
 # Add parent directories to path to import our MongoDB modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from database.mongodb_retrieval import ForensicMongoRetrieval
 from database.mongodb_storage import ForensicMongoStorage

@@ -17,4 +17,5 @@ router.register(r'audit', views.AuditLogViewSet, basename='auditlog')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('disk-images/', views.DiskImagesView.as_view(), name='disk-images'),
 ]

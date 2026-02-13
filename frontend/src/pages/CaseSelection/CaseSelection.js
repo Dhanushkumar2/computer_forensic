@@ -51,16 +51,32 @@ const CaseSelection = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [openNewCase, setOpenNewCase] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [availableDiskImages, setAvailableDiskImages] = useState([]);
   const [newCase, setNewCase] = useState({
     title: '',
     description: '',
     priority: 'medium',
-    diskImage: null,
+    diskImageFilename: '',
   });
 
   useEffect(() => {
     fetchCases();
+    fetchDiskImages();
   }, []);
+
+  const fetchDiskImages = async () => {
+    try {
+      console.log('Fetching disk images...');
+      const response = await forensicAPI.getDiskImages();
+      console.log('Disk images response:', response.data);
+      const images = response.data.images || [];
+      console.log('Setting available disk images:', images);
+      setAvailableDiskImages(images);
+    } catch (error) {
+      console.error('Error fetching disk images:', error);
+      console.error('Error details:', error.response?.data);
+    }
+  };
 
   const fetchCases = async () => {
     setLoading(true);
@@ -113,59 +129,65 @@ const CaseSelection = () => {
   };
 
   const handleCreateCase = async () => {
-    if (!newCase.title || !newCase.diskImage) {
-      alert('Please provide case title and disk image');
+    if (!newCase.title || !newCase.diskImageFilename) {
+      alert('Please provide case title and select a disk image');
       return;
     }
 
     setLoading(true);
     setUploadProgress(0);
 
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 500);
-
     try {
-      // Mock case creation - replace with actual API call
-      setTimeout(() => {
-        const newCaseData = {
-          id: cases.length + 1,
-          case_id: `CASE-2024-${String(cases.length + 1).padStart(3, '0')}`,
-          title: newCase.title,
-          description: newCase.description,
-          status: 'processing',
-          priority: newCase.priority,
-          created_at: new Date().toISOString().split('T')[0],
-          assigned_to: localStorage.getItem('username') || 'Current User',
-          artifacts_count: 0,
-          disk_image: newCase.diskImage.name,
-        };
+      // Create case data
+      const caseData = {
+        title: newCase.title,
+        description: newCase.description,
+        priority: newCase.priority,
+        disk_image_filename: newCase.diskImageFilename,
+        status: 'processing',
+      };
 
-        setCases([newCaseData, ...cases]);
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 300);
+
+      // Create case via API
+      const response = await forensicAPI.createCase(caseData);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      const newCaseData = response.data;
+
+      // Add to cases list
+      setCases([newCaseData, ...cases]);
+      
+      // Close modal
+      setTimeout(() => {
         setOpenNewCase(false);
         setNewCase({
           title: '',
           description: '',
           priority: 'medium',
-          diskImage: null,
+          diskImageFilename: '',
         });
         setLoading(false);
         setUploadProgress(0);
 
-        // Navigate to the new case after creation
-        setTimeout(() => {
-          handleSelectCase(newCaseData);
-        }, 1000);
-      }, 5000);
+        // Navigate to the new case
+        handleSelectCase(newCaseData);
+      }, 1000);
+
     } catch (error) {
       console.error('Error creating case:', error);
+      alert('Error creating case: ' + (error.response?.data?.error || error.message));
       setLoading(false);
       setUploadProgress(0);
     }
@@ -510,39 +532,39 @@ const CaseSelection = () => {
               </Select>
             </FormControl>
 
-            {/* File Upload */}
-            <Paper
-              sx={{
-                p: 3,
-                border: `2px dashed ${colors.primary.main}`,
-                backgroundColor: `${colors.primary.main}10`,
-                textAlign: 'center',
-                cursor: 'pointer',
-                '&:hover': {
-                  backgroundColor: `${colors.primary.main}20`,
-                },
-              }}
-              onClick={() => document.getElementById('disk-image-upload').click()}
-            >
-              <input
-                id="disk-image-upload"
-                type="file"
-                accept=".E01,.dd,.raw,.img,.001"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  if (e.target.files[0]) {
-                    setNewCase({ ...newCase, diskImage: e.target.files[0] });
-                  }
-                }}
-              />
-              <CloudUpload sx={{ fontSize: 48, color: colors.primary.main, mb: 1 }} />
-              <Typography variant="h6" fontWeight={600} color={colors.text.primary}>
-                {newCase.diskImage ? newCase.diskImage.name : 'Upload Disk Image'}
-              </Typography>
-              <Typography variant="body2" color={colors.text.secondary}>
-                Supported formats: E01, DD, RAW, IMG, 001
-              </Typography>
-            </Paper>
+            {/* Disk Image Selection */}
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel>Select Disk Image</InputLabel>
+              <Select
+                value={newCase.diskImageFilename}
+                label="Select Disk Image"
+                onChange={(e) => setNewCase({ ...newCase, diskImageFilename: e.target.value })}
+              >
+                {availableDiskImages.length === 0 && (
+                  <MenuItem value="" disabled>
+                    No disk images found in data/samples/
+                  </MenuItem>
+                )}
+                {availableDiskImages.map((image) => (
+                  <MenuItem key={image.filename} value={image.filename}>
+                    <Box>
+                      <Typography variant="body1" fontWeight={600}>
+                        {image.filename}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {image.size_formatted} • {image.extension}
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {availableDiskImages.length === 0 && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Place disk images (.E01, .DD, .RAW, .IMG) in the <strong>data/samples/</strong> directory to make them available for processing.
+              </Alert>
+            )}
 
             {uploadProgress > 0 && uploadProgress < 100 && (
               <Box sx={{ mt: 3 }}>
@@ -572,7 +594,7 @@ const CaseSelection = () => {
           <Button
             variant="contained"
             onClick={handleCreateCase}
-            disabled={loading || !newCase.title || !newCase.diskImage}
+            disabled={loading || !newCase.title || !newCase.diskImageFilename}
             sx={{
               background: colors.gradients.primary,
               fontWeight: 600,

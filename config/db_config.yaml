@@ -1,18 +1,21 @@
-postgres:
-  host: "localhost"
-  port: 5432
-  user: "dhanush"
-  password: "dkarcher"
-  database: "forensics"
-
 mongodb:
-  uri: "mongodb://localhost:27017/"
-  database: "forensics"
+  host: localhost
+  port: 27017
+  database: forensic_ir
+  
+postgresql:
+  host: localhost
+  port: 5432
+  database: forensic_ir
+  user: postgres
+  password: postgres
 
 neo4j:
-  user: "neo4j"
-  password: "password"
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: password
 
-milvus:
-  host: "127.0.0.1"
-  port: "19530"
+vector_db:
+  host: localhost
+  port: 6333
+  collection: forensic_artifacts

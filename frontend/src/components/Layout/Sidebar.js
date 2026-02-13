@@ -21,6 +21,7 @@ import {
   Description as ReportsIcon,
   Settings as SettingsIcon,
   Security as SecurityIcon,
+  BugReport as AnomalyIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import colors from '../../theme/colors';
@@ -31,6 +32,7 @@ const menuItems = [
   { text: 'Artifacts', icon: <ArtifactsIcon />, path: '/artifacts' },
   { text: 'Timeline', icon: <TimelineIcon />, path: '/timeline' },
   { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
+  { text: 'AI Anomaly Detection', icon: <AnomalyIcon />, path: '/anomaly-detection', special: true },
   { text: 'Reports', icon: <ReportsIcon />, path: '/reports' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
@@ -41,7 +43,19 @@ const Sidebar = ({ open, onClose, isMobile }) => {
   const location = useLocation();
 
   const handleNavigation = (path) => {
-    navigate(path);
+    // For anomaly detection, we need to get the current case ID
+    if (path === '/anomaly-detection') {
+      const selectedCase = localStorage.getItem('selectedCase');
+      if (selectedCase) {
+        const caseData = JSON.parse(selectedCase);
+        navigate(`/cases/${caseData.id}/anomaly-detection`);
+      } else {
+        navigate('/case-selection');
+      }
+    } else {
+      navigate(path);
+    }
+    
     if (isMobile) {
       onClose();
     }
@@ -82,7 +96,9 @@ const Sidebar = ({ open, onClose, isMobile }) => {
       {/* Navigation Menu */}
       <List sx={{ flexGrow: 1, px: 2, py: 3 }}>
         {menuItems.map((item, index) => {
-          const isActive = location.pathname === item.path;
+          const isActive = item.path === '/anomaly-detection' 
+            ? location.pathname.includes('/anomaly-detection')
+            : location.pathname === item.path;
           
           return (
             <motion.div

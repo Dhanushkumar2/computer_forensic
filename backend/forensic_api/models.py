@@ -79,6 +79,26 @@ class ForensicCase(models.Model):
             models.Index(fields=['assigned_to']),
         ]
     
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate case_id"""
+        if not self.case_id:
+            # Generate case_id: CASE-YYYY-NNN
+            from datetime import datetime
+            year = datetime.now().year
+            # Get the count of cases this year
+            count = ForensicCase.objects.filter(
+                case_id__startswith=f'CASE-{year}-'
+            ).count() + 1
+            self.case_id = f'CASE-{year}-{str(count).zfill(3)}'
+        
+        # Set default image_path and image_name if not provided
+        if not self.image_path:
+            self.image_path = ''
+        if not self.image_name:
+            self.image_name = ''
+        
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return f"{self.case_id} - {self.title}"
     
@@ -154,6 +174,7 @@ class ExtractionJob(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='queued')
     
     # Job details
+    source_path = models.CharField(max_length=500, blank=True)
     extraction_type = models.CharField(max_length=50, default='comprehensive')
     parameters = models.JSONField(default=dict, blank=True)
     

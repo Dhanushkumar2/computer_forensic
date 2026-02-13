@@ -1,0 +1,9 @@
+INFO 2025-11-25 04:51:16,024 autoreload 24996 133942650470528 Watching for file changes with StatReloader
+INFO 2025-11-25 04:51:52,709 autoreload 24996 133942650470528 /home/dhanush/myvenv/forensic_ir_app/backend/forensic_api/views.py changed, reloading.
+INFO 2025-11-25 04:51:53,251 autoreload 25141 134796510519424 Watching for file changes with StatReloader
+INFO 2025-11-25 04:52:46,334 autoreload 25328 136454585077888 Watching for file changes with StatReloader
+INFO 2025-11-25 04:53:28,028 autoreload 25328 136454585077888 /home/dhanush/myvenv/forensic_ir_app/backend/forensic_api/mongodb_service.py changed, reloading.
+INFO 2025-11-25 04:53:28,694 autoreload 25430 132286221287552 Watching for file changes with StatReloader
+INFO 2025-11-25 04:54:23,099 autoreload 25584 140188787941504 Watching for file changes with StatReloader
+INFO 2025-11-25 04:55:54,129 autoreload 26057 131884879618176 Watching for file changes with StatReloader
+INFO 2025-11-25 04:56:25,576 autoreload 26234 139877025616000 Watching for file changes with StatReloader

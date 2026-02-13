@@ -16,6 +16,7 @@ import Timeline from './pages/Timeline/Timeline';
 import Analytics from './pages/Analytics/Analytics';
 import Reports from './pages/Reports/Reports';
 import Settings from './pages/Settings/Settings';
+import AnomalyDetectionPage from './pages/AnomalyDetection/AnomalyDetectionPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -65,6 +66,7 @@ function App() {
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/cases" element={<Cases />} />
                       <Route path="/cases/:id" element={<CaseDetails />} />
+                      <Route path="/cases/:caseId/anomaly-detection" element={<AnomalyDetectionPage />} />
                       <Route path="/artifacts" element={<Artifacts />} />
                       <Route path="/timeline" element={<Timeline />} />
                       <Route path="/analytics" element={<Analytics />} />

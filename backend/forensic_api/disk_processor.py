@@ -10,7 +10,10 @@ from pathlib import Path
 from datetime import datetime
 
 # Add parent directories to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from extraction.disk_extractor import ForensicDiskExtractor
 from database.mongodb_storage import ForensicMongoStorage

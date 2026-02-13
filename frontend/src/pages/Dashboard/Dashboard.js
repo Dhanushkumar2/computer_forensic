@@ -20,6 +20,7 @@ import StatCard from '../../components/Dashboard/StatCard';
 import CasesList from '../../components/Dashboard/CasesList';
 import ActivityChart from '../../components/Dashboard/ActivityChart';
 import ArtifactDistribution from '../../components/Dashboard/ArtifactDistribution';
+import ProcessingStatus from '../../components/Dashboard/ProcessingStatus';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -38,15 +39,40 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [statsRes, casesRes] = await Promise.all([
-        forensicAPI.getDashboardStats(),
-        forensicAPI.getRecentCases(),
-      ]);
       
-      setStats(statsRes.data);
-      setRecentCases(casesRes.data);
+      // Get current case from localStorage
+      const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
+      
+      if (!currentCase.id) {
+        console.error('No case selected');
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch statistics from MongoDB
+      const statsRes = await forensicAPI.getStatistics(currentCase.id);
+      
+      // Transform MongoDB stats to dashboard format
+      const mongoStats = statsRes.data;
+      setStats({
+        totalCases: 1, // Current case
+        activeCases: currentCase.status === 'active' ? 1 : 0,
+        totalArtifacts: mongoStats.total_artifacts || 0,
+        criticalFindings: mongoStats.suspicious_indicators?.length || 0,
+      });
+      
+      // Set recent cases (just current case for now)
+      setRecentCases([currentCase]);
+      
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      // Set default values if error
+      setStats({
+        totalCases: 0,
+        activeCases: 0,
+        totalArtifacts: 0,
+        criticalFindings: 0,
+      });
     } finally {
       setLoading(false);
     }
@@ -91,6 +117,9 @@ const Dashboard = () => {
     );
   }
 
+  // Get current case ID
+  const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
+
   return (
     <Box>
       <motion.div
@@ -105,6 +134,9 @@ const Dashboard = () => {
           Welcome back! Here's what's happening with your investigations.
         </Typography>
       </motion.div>
+
+      {/* Processing Status */}
+      {currentCase.id && <ProcessingStatus caseId={currentCase.id} />}
 
       {/* Stats Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
