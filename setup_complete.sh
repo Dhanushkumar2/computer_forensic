@@ -167,22 +167,6 @@ log_info "Installing additional dependencies..."
 pip install requests python-dateutil pillow > /dev/null 2>&1
 log_success "Additional dependencies installed"
 
-################################################################################
-# 4. DIRECTORY STRUCTURE
-################################################################################
-
-log_section "4. DIRECTORY STRUCTURE"
-
-log_info "Creating required directories..."
-
-# Create data directories
-mkdir -p forensic_ir_app/data/{raw,processed,extracted,samples,models}
-mkdir -p forensic_ir_app/backend/logs
-mkdir -p forensic_ir_app/backend/temp_extractions
-mkdir -p forensic_ir_app/backend/media
-mkdir -p forensic_ir_app/backend/static
-
-log_success "Directory structure created"
 
 ################################################################################
 # 5. DATABASE CONFIGURATION
@@ -421,7 +405,8 @@ log_section "11. CREATING STARTUP SCRIPTS"
 cat > forensic_ir_app/start_backend.sh << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")/backend"
-source ../venv/bin/activate 2>/dev/null || source ../../venv/bin/activate
+# Activate virtual environment (parent directory is the venv)
+source ../../bin/activate 2>/dev/null || echo "Warning: Could not activate venv"
 echo "Starting Django backend on http://localhost:8000"
 python manage.py runserver 8000
 EOF

@@ -36,6 +36,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import colors from '../../theme/colors';
 import { forensicAPI } from '../../services/api';
+import ReExtractButton from '../../components/Extraction/ReExtractButton';
 
 const Artifacts = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -80,7 +81,36 @@ const Artifacts = () => {
   const fetchArtifacts = async () => {
     setLoading(true);
     try {
-      // Mock data for demonstration - replace with actual API calls
+      // Get current case from localStorage
+      const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
+      
+      if (!currentCase.id) {
+        console.error('No case selected');
+        setLoading(false);
+        return;
+      }
+      
+      // Fetch statistics from MongoDB
+      const statsRes = await forensicAPI.getStatistics(currentCase.id);
+      const mongoStats = statsRes.data;
+      
+      // Update stats with real data from MongoDB
+      const realStats = {
+        browser: mongoStats.browser_artifacts || 0,
+        registry: mongoStats.registry_artifacts || 0,
+        filesystem: mongoStats.filesystem_artifacts || 0,
+        usb: mongoStats.usb_devices || 0,
+        events: mongoStats.event_logs || 0,
+        deleted: mongoStats.deleted_files || 0,
+        programs: mongoStats.installed_programs || 0,
+        activity: mongoStats.user_activity || 0,
+      };
+      
+      setStats(realStats);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching artifacts:', error);
+      // Fallback to mock data if API fails
       const mockStats = {
         browser: 1247,
         registry: 856,
@@ -92,15 +122,13 @@ const Artifacts = () => {
         activity: 2890,
       };
       setStats(mockStats);
-
-      // Simulate loading artifacts
-      setTimeout(() => {
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      console.error('Error fetching artifacts:', error);
       setLoading(false);
     }
+  };
+
+  const handleExtractionComplete = (artifactsCount) => {
+    // Refresh artifacts after extraction completes
+    fetchArtifacts();
   };
 
   const handleTabChange = (event, newValue) => {
@@ -116,6 +144,9 @@ const Artifacts = () => {
     const artifact = artifactTypes.find(a => a.key === type);
     return artifact ? artifact.color : colors.primary.main;
   };
+
+  // Get current case ID
+  const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
 
   const renderArtifactCard = (type, count) => (
     <motion.div
@@ -266,21 +297,29 @@ const Artifacts = () => {
               Comprehensive view of all collected digital evidence
             </Typography>
           </Box>
-          <Tooltip title="Refresh artifacts">
-            <IconButton
-              onClick={fetchArtifacts}
-              sx={{
-                background: colors.gradients.primary,
-                color: 'white',
-                '&:hover': {
+          <Box display="flex" gap={2}>
+            {currentCase.id && (
+              <ReExtractButton 
+                caseId={currentCase.id} 
+                onExtractionComplete={handleExtractionComplete}
+              />
+            )}
+            <Tooltip title="Refresh artifacts">
+              <IconButton
+                onClick={fetchArtifacts}
+                sx={{
                   background: colors.gradients.primary,
-                  transform: 'rotate(180deg)',
-                },
-              }}
-            >
-              <Refresh />
-            </IconButton>
-          </Tooltip>
+                  color: 'white',
+                  '&:hover': {
+                    background: colors.gradients.primary,
+                    transform: 'rotate(180deg)',
+                  },
+                }}
+              >
+                <Refresh />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
 
         {/* Search Bar */}

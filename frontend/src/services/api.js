@@ -174,6 +174,12 @@ export const forensicAPI = {
     return api.get('/cases/anomaly_service_status/');
   },
   
+  // Re-extraction
+  reExtractCase: (caseId) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.post(`/cases/${id}/re-extract/`);
+  },
+  
   // Export
   exportData: (caseId, format) => {
     const id = caseId || forensicAPI.getCurrentCaseId();

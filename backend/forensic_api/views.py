@@ -468,6 +468,45 @@ class ForensicCaseViewSet(viewsets.ModelViewSet):
                 {'error': 'Failed to retrieve network analysis'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    @action(detail=True, methods=['post'])
+    def re_extract(self, request, pk=None):
+        """Re-extract artifacts from the disk image"""
+        case = self.get_object()
+        
+        if not case.image_path or not os.path.exists(case.image_path):
+            return Response(
+                {'error': 'Disk image not found for this case'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if there's already a running extraction job
+        running_job = ExtractionJob.objects.filter(
+            case=case,
+            status__in=['queued', 'running']
+        ).first()
+        
+        if running_job:
+            return Response(
+                {'error': 'An extraction job is already running for this case'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create new extraction job
+        job = ExtractionJob.objects.create(
+            case=case,
+            source_path=case.image_path,
+            status='queued'
+        )
+        
+        # Start processing in background
+        self._start_processing(case, job, case.image_path)
+        
+        return Response({
+            'message': 'Re-extraction started',
+            'job_id': job.id,
+            'status': 'queued'
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class CaseNoteViewSet(viewsets.ModelViewSet):

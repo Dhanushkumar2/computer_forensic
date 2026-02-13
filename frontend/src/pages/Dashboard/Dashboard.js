@@ -21,6 +21,7 @@ import CasesList from '../../components/Dashboard/CasesList';
 import ActivityChart from '../../components/Dashboard/ActivityChart';
 import ArtifactDistribution from '../../components/Dashboard/ArtifactDistribution';
 import ProcessingStatus from '../../components/Dashboard/ProcessingStatus';
+import ReExtractButton from '../../components/Extraction/ReExtractButton';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -76,6 +77,11 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExtractionComplete = (artifactsCount) => {
+    // Refresh dashboard after extraction completes
+    fetchDashboardData();
   };
 
   const statCards = [

@@ -66,15 +66,29 @@ const CaseSelection = () => {
 
   const fetchDiskImages = async () => {
     try {
-      console.log('Fetching disk images...');
+      console.log('Fetching disk images from:', `${process.env.REACT_APP_API_URL || 'http://localhost:8000/api'}/disk-images/`);
       const response = await forensicAPI.getDiskImages();
-      console.log('Disk images response:', response.data);
+      console.log('Disk images response:', response);
+      console.log('Response data:', response.data);
       const images = response.data.images || [];
-      console.log('Setting available disk images:', images);
+      console.log('Extracted images array:', images);
+      console.log('Number of images:', images.length);
       setAvailableDiskImages(images);
+      
+      if (images.length === 0) {
+        console.warn('No disk images found. Check if:');
+        console.warn('1. Backend server is running on http://localhost:8000');
+        console.warn('2. Disk images exist in forensic_ir_app/data/samples/');
+        console.warn('3. CORS is properly configured');
+      }
     } catch (error) {
       console.error('Error fetching disk images:', error);
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response);
       console.error('Error details:', error.response?.data);
+      
+      // Show user-friendly error
+      alert(`Failed to load disk images: ${error.message}\n\nMake sure the backend server is running on http://localhost:8000`);
     }
   };
 
