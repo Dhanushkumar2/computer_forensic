@@ -17,6 +17,8 @@ if ! need_cmd python3; then
   if [[ "$auto_install" == "1" ]] && need_cmd apt-get; then
     sudo apt-get update
     sudo apt-get install -y python3 python3-venv python3-pip
+  elif [[ "$auto_install" == "1" ]] && need_cmd brew; then
+    brew install python
   else
     echo "Missing python3. Install it and rerun."; exit 1
   fi
@@ -26,6 +28,8 @@ if ! need_cmd node; then
   if [[ "$auto_install" == "1" ]] && need_cmd apt-get; then
     sudo apt-get update
     sudo apt-get install -y nodejs npm
+  elif [[ "$auto_install" == "1" ]] && need_cmd brew; then
+    brew install node
   else
     echo "Missing node. Install Node.js (v18+ recommended) and rerun."; exit 1
   fi
@@ -43,6 +47,7 @@ fi
 if ! need_cmd mongod && ! need_cmd mongosh && ! need_cmd mongo; then
   echo "MongoDB not found. Install MongoDB and ensure it is running."
   echo "Ubuntu hint: https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/"
+  echo "macOS hint: brew tap mongodb/brew && brew install mongodb-community"
 fi
 
 log "Setting up Python virtual environment"
