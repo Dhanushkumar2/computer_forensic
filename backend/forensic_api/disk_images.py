@@ -22,7 +22,7 @@ def get_available_disk_images():
         return []
     
     # Supported disk image extensions
-    image_extensions = ['.E01', '.E02', '.dd', '.raw', '.img', '.001', '.aff', '.afd']
+    image_extensions = ['.E01', '.E02', '.dd', '.raw', '.img', '.001', '.aff', '.afd', '.tar']
     
     images = []
     

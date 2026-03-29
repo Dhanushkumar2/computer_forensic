@@ -32,6 +32,10 @@ class ForensicMongoService:
     def get_case_summary(self, case_id):
         """Get case summary"""
         return self.retrieval.get_case_summary(case_id)
+
+    def get_case_info(self, case_id):
+        """Get raw case document"""
+        return self.retrieval.get_case_info(case_id)
     
     def get_case_statistics(self, case_id):
         """Get case statistics"""
@@ -42,6 +46,27 @@ class ForensicMongoService:
         """Get browser history with pagination"""
         history = self.retrieval.get_browser_history(case_id, browser_type, limit + offset)
         return history[offset:offset + limit] if history else []
+
+    # Android artifacts
+    def get_android_artifacts(self, case_id, artifact_type=None, package_name=None, limit=200, offset=0):
+        """Get Android TAR artifacts with pagination"""
+        return self.retrieval.get_android_artifacts(case_id, artifact_type, package_name, limit, offset)
+
+    def get_ml_anomalies(self, case_id, min_score=None, limit=50, offset=0):
+        """Get ML anomalies with pagination"""
+        return self.retrieval.get_ml_anomalies(case_id, min_score, limit, offset)
+
+    def store_ml_anomalies(self, case_id, items, summary=None):
+        """Store ML anomalies in MongoDB"""
+        return self.storage.store_ml_anomalies(case_id, items, summary)
+
+    def get_android_ml_anomalies(self, case_id, min_score=None, limit=50, offset=0):
+        """Get Android ML anomalies with pagination"""
+        return self.retrieval.get_android_ml_anomalies(case_id, min_score, limit, offset)
+
+    def store_android_ml_anomalies(self, case_id, items, summary=None):
+        """Store Android ML anomalies in MongoDB"""
+        return self.storage.store_android_ml_anomalies(case_id, items, summary)
     
     def get_browser_cookies(self, case_id, browser_type=None, host=None, limit=100, offset=0):
         """Get browser cookies with pagination"""
@@ -77,6 +102,11 @@ class ForensicMongoService:
     def get_run_keys(self, case_id):
         """Get run keys"""
         return self.retrieval.get_run_keys(case_id)
+
+    def get_registry_artifacts(self, case_id, artifact_type=None, limit=100, offset=0):
+        """Get registry artifacts with pagination"""
+        artifacts = self.retrieval.get_registry_artifacts(case_id, artifact_type, limit + offset)
+        return artifacts[offset:offset + limit] if artifacts else []
     
     def get_system_info(self, case_id):
         """Get system information"""
@@ -297,6 +327,16 @@ class ForensicMongoService:
     def store_artifacts_from_json(self, json_file_path):
         """Store artifacts from JSON file"""
         return self.storage.store_all_artifacts(json_file_path)
+
+    def upsert_case_record(self, case_id, case_details, summary=None, raw_file_info=None, status='created'):
+        """Store or update a case-level document in MongoDB."""
+        return self.storage.upsert_case_record(
+            case_id=case_id,
+            case_details=case_details,
+            summary=summary,
+            raw_file_info=raw_file_info,
+            status=status
+        )
 
 
 # Global service instance

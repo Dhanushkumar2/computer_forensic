@@ -1,6 +1,23 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const normalizeApiUrl = (url) => {
+  if (!url) return url;
+  return url.replace('http://localhost:8000', 'http://127.0.0.1:8000');
+};
+
+const resolveApiBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return normalizeApiUrl(process.env.REACT_APP_API_URL);
+  }
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    const apiHost = hostname === 'localhost' ? '127.0.0.1' : hostname;
+    return `${protocol}//${apiHost}:8000/api`;
+  }
+  return 'http://127.0.0.1:8000/api';
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -67,13 +84,31 @@ export const forensicAPI = {
   
   // Cases
   getCases: (params) => api.get('/cases/', { params }),
+  getMongoCases: () => api.get('/cases/mongo-cases/'),
+  importMongoCase: (caseId) => api.post('/cases/import-mongo/', { case_id: caseId }),
   getCase: (id) => api.get(`/cases/${id}/`),
+  getCaseSummary: (caseId) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/summary/`);
+  },
   createCase: (data) => api.post('/cases/', data),
   updateCase: (id, data) => api.put(`/cases/${id}/`, data),
   deleteCase: (id) => api.delete(`/cases/${id}/`),
   getProcessingStatus: (caseId) => {
     const id = caseId || forensicAPI.getCurrentCaseId();
     return api.get(`/cases/${id}/processing-status/`);
+  },
+  getBasicInfo: (caseId) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/basic-info/`);
+  },
+  getRawExtractionStatus: (caseId) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/raw-extraction-status/`);
+  },
+  extractRawChunk: (caseId, payload) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.post(`/cases/${id}/extract-raw/`, payload);
   },
   
   // Artifacts (use current case if caseId not provided)
@@ -95,6 +130,12 @@ export const forensicAPI = {
   getBrowserDownloads: (caseId) => {
     const id = caseId || forensicAPI.getCurrentCaseId();
     return api.get(`/cases/${id}/browser-downloads/`);
+  },
+
+  // Event logs
+  getEventLogs: (caseId, params) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/event-logs/`, { params });
   },
   getBrowserCookies: (caseId) => {
     const id = caseId || forensicAPI.getCurrentCaseId();
@@ -120,11 +161,21 @@ export const forensicAPI = {
     const id = caseId || forensicAPI.getCurrentCaseId();
     return api.get(`/cases/${id}/deleted-files/`);
   },
+  getInstalledPrograms: (caseId) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/installed-programs/`);
+  },
   
   // User Activity
   getUserActivity: (caseId) => {
     const id = caseId || forensicAPI.getCurrentCaseId();
     return api.get(`/cases/${id}/user-activity/`);
+  },
+
+  // Android artifacts
+  getAndroidArtifacts: (caseId, params) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/android-artifacts/`, { params });
   },
   
   // Timeline
@@ -164,11 +215,19 @@ export const forensicAPI = {
   // ML-based Anomaly Detection
   analyzeAnomalies: (caseId) => {
     const id = caseId || forensicAPI.getCurrentCaseId();
-    return api.post(`/cases/${id}/analyze_anomalies/`);
+    return api.post(`/cases/${id}/ml-infer/`);
   },
   getAnomalyDetails: (caseId, params) => {
     const id = caseId || forensicAPI.getCurrentCaseId();
-    return api.get(`/cases/${id}/anomaly_details/`, { params });
+    return api.get(`/cases/${id}/ml-anomalies/`, { params });
+  },
+  runAndroidMlInfer: (caseId, payload) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.post(`/cases/${id}/android-ml-infer/`, payload);
+  },
+  getAndroidMlAnomalies: (caseId, params) => {
+    const id = caseId || forensicAPI.getCurrentCaseId();
+    return api.get(`/cases/${id}/android-ml-anomalies/`, { params });
   },
   getAnomalyServiceStatus: () => {
     return api.get('/cases/anomaly_service_status/');

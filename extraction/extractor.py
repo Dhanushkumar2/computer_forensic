@@ -156,7 +156,8 @@ if __name__ == "__main__":
 
     # 4. Extract data only from NTFS partition (0x07)
     for part in partitions:
-        if part.desc.startswith("NTFS") or "0x07" in part.desc:
+        desc = part.desc.decode("utf-8", errors="ignore") if isinstance(part.desc, bytes) else str(part.desc)
+        if desc.startswith("NTFS") or "0x07" in desc:
             files = extract_ntfs_file_list(img, part)
             with open("ntfs_root_files.json", "w") as f:
                 json.dump(files, f, indent=4)

@@ -587,7 +587,7 @@ log_info "Running final checks..."
 
 # Test Django
 cd forensic_ir_app/backend
-python manage.py check > /dev/null 2>&1
+python3 manage.py check > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     log_success "Django backend check passed"
 else

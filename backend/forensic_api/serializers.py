@@ -39,6 +39,10 @@ class ForensicCaseSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(read_only=True)
     assigned_to = UserSerializer(read_only=True)
     assigned_to_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    disk_image_filename = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    case_summary = serializers.JSONField(write_only=True, required=False)
+    disk_image = serializers.FileField(write_only=True, required=False)
+    raw_file = serializers.FileField(write_only=True, required=False)
     
     class Meta:
         model = ForensicCase
@@ -49,7 +53,8 @@ class ForensicCaseSerializer(serializers.ModelSerializer):
             'ntfs_offset', 'user_profiles', 'assigned_to', 'assigned_to_id', 'created_by',
             'created_at', 'updated_at', 'total_browser_history', 'total_browser_cookies',
             'total_usb_devices', 'total_user_activity', 'total_installed_programs',
-            'total_deleted_files', 'total_event_logs', 'total_timeline_events'
+            'total_deleted_files', 'total_event_logs', 'total_timeline_events',
+            'disk_image_filename', 'case_summary', 'disk_image', 'raw_file'
         ]
         read_only_fields = [
             'id', 'uuid', 'created_by', 'created_at', 'updated_at',
@@ -61,10 +66,16 @@ class ForensicCaseSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Create a new forensic case"""
         assigned_to_id = validated_data.pop('assigned_to_id', None)
+        validated_data.pop('disk_image_filename', None)
+        validated_data.pop('case_summary', None)
+        validated_data.pop('disk_image', None)
+        validated_data.pop('raw_file', None)
         if assigned_to_id:
             validated_data['assigned_to_id'] = assigned_to_id
         
-        validated_data['created_by'] = self.context['request'].user
+        request_user = self.context['request'].user
+        if 'created_by' not in validated_data and request_user.is_authenticated:
+            validated_data['created_by'] = request_user
         return super().create(validated_data)
 
 
@@ -219,6 +230,132 @@ class UserActivitySerializer(serializers.Serializer):
     last_run = serializers.DateTimeField(required=False, allow_null=True)
     timestamp = serializers.DateTimeField(required=False, allow_null=True)
     created_at = serializers.DateTimeField()
+
+
+class RegistryArtifactSerializer(serializers.Serializer):
+    """Registry artifact serializer"""
+
+    case_id = serializers.CharField()
+    artifact_type = serializers.CharField()
+    hive = serializers.CharField(required=False, allow_blank=True)
+    key_path = serializers.CharField(required=False, allow_blank=True)
+    name = serializers.CharField(required=False, allow_blank=True)
+    value = serializers.CharField(required=False, allow_blank=True)
+    type = serializers.CharField(required=False, allow_blank=True)
+    data = serializers.JSONField(required=False)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class EventLogArtifactSerializer(serializers.Serializer):
+    """Event log serializer"""
+
+    case_id = serializers.CharField()
+    record_number = serializers.IntegerField(required=False)
+    event_id = serializers.IntegerField(required=False)
+    event_type = serializers.CharField(required=False, allow_blank=True)
+    event_category = serializers.CharField(required=False, allow_blank=True)
+    time_generated = serializers.CharField(required=False, allow_blank=True)
+    time_written = serializers.CharField(required=False, allow_blank=True)
+    timestamp = serializers.CharField(required=False, allow_blank=True)
+    source_name = serializers.CharField(required=False, allow_blank=True)
+
+
+class AndroidArtifactSerializer(serializers.Serializer):
+    """Android TAR artifact serializer"""
+
+    case_id = serializers.CharField()
+    artifact_type = serializers.CharField()
+    path = serializers.CharField(required=False, allow_blank=True)
+    size = serializers.IntegerField(required=False)
+    mtime = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    file_type = serializers.CharField(required=False, allow_blank=True)
+    package_name = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class MLAnomalySerializer(serializers.Serializer):
+    """ML anomaly inference serializer"""
+
+    case_id = serializers.CharField()
+    anomaly_score = serializers.FloatField()
+    label = serializers.CharField()
+    activity_type = serializers.IntegerField(required=False)
+    activity_name = serializers.CharField(required=False, allow_blank=True)
+    action = serializers.IntegerField(required=False)
+    action_name = serializers.CharField(required=False, allow_blank=True)
+    hour = serializers.FloatField(required=False)
+    day_of_week = serializers.IntegerField(required=False)
+    is_weekend = serializers.IntegerField(required=False)
+    file_size = serializers.FloatField(required=False)
+    is_private_ip = serializers.IntegerField(required=False)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class AndroidMLAnomalySerializer(serializers.Serializer):
+    """Android ML anomaly inference serializer"""
+
+    case_id = serializers.CharField()
+    name = serializers.CharField(required=False, allow_blank=True)
+    anomaly_score = serializers.FloatField()
+    label = serializers.CharField()
+    created_at = serializers.CharField(required=False, allow_blank=True)
+    computer_name = serializers.CharField(required=False, allow_blank=True)
+    strings = serializers.ListField(child=serializers.CharField(), required=False)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class FileSystemArtifactSerializer(serializers.Serializer):
+    """Filesystem artifact serializer"""
+
+    case_id = serializers.CharField()
+    artifact_type = serializers.CharField()
+    filename = serializers.CharField(required=False, allow_blank=True)
+    executable_name = serializers.CharField(required=False, allow_blank=True)
+    run_count = serializers.IntegerField(required=False)
+    last_run_time = serializers.CharField(required=False, allow_blank=True)
+    target_path = serializers.CharField(required=False, allow_blank=True)
+    arguments = serializers.CharField(required=False, allow_blank=True)
+    working_directory = serializers.CharField(required=False, allow_blank=True)
+    creation_time = serializers.CharField(required=False, allow_blank=True)
+    access_time = serializers.CharField(required=False, allow_blank=True)
+    write_time = serializers.CharField(required=False, allow_blank=True)
+    path = serializers.CharField(required=False, allow_blank=True)
+    size = serializers.IntegerField(required=False)
+    file_size = serializers.IntegerField(required=False)
+    file_path = serializers.CharField(required=False, allow_blank=True)
+    timestamp = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class DeletedFileSerializer(serializers.Serializer):
+    """Recycle bin artifact serializer"""
+
+    case_id = serializers.CharField()
+    original_filename = serializers.CharField(required=False, allow_blank=True)
+    recycle_filename = serializers.CharField(required=False, allow_blank=True)
+    deletion_time = serializers.CharField(required=False, allow_blank=True)
+    timestamp = serializers.CharField(required=False, allow_blank=True)
+    file_size = serializers.IntegerField(required=False)
+    drive_letter = serializers.CharField(required=False, allow_blank=True)
+    record_number = serializers.IntegerField(required=False)
+    user_sid = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class InstalledProgramSerializer(serializers.Serializer):
+    """Installed programs serializer"""
+
+    case_id = serializers.CharField()
+    registry_key = serializers.CharField(required=False, allow_blank=True)
+    display_name = serializers.CharField(required=False, allow_blank=True)
+    display_version = serializers.CharField(required=False, allow_blank=True)
+    publisher = serializers.CharField(required=False, allow_blank=True)
+    install_date = serializers.CharField(required=False, allow_blank=True)
+    install_location = serializers.CharField(required=False, allow_blank=True)
+    uninstall_string = serializers.CharField(required=False, allow_blank=True)
+    estimated_size = serializers.IntegerField(required=False)
+    timestamp = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)
 
 
 class TimelineEventSerializer(serializers.Serializer):

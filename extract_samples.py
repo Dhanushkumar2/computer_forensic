@@ -43,7 +43,11 @@ def extract_and_store(image_path, case_id):
         
         # Store in MongoDB
         print("\n📦 Storing artifacts in MongoDB...")
-        storage = ForensicMongoStorage(config_path="forensic_ir_app/config/db_config.yaml")
+        config_path = Path(__file__).resolve().parent / "config" / "db_config.yaml"
+        storage = ForensicMongoStorage(config_path=str(config_path))
+
+        # Clear existing case artifacts to avoid duplicates
+        storage.delete_case_artifacts(case_id)
         
         # Store browser artifacts
         browser_count = storage.store_browser_artifacts(case_id, artifacts.get("browser_artifacts", {}))

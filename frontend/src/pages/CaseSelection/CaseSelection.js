@@ -42,16 +42,21 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import colors from '../../theme/colors';
-import { forensicAPI } from '../../services/api';
+import { forensicAPI, API_BASE_URL } from '../../services/api';
 
 const CaseSelection = () => {
   const navigate = useNavigate();
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [casesError, setCasesError] = useState('');
+  const [casesDebug, setCasesDebug] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [openNewCase, setOpenNewCase] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [availableDiskImages, setAvailableDiskImages] = useState([]);
+  const [diskImagesError, setDiskImagesError] = useState('');
+  const [diskImagesDebug, setDiskImagesDebug] = useState('');
+  const [importingCaseId, setImportingCaseId] = useState(null);
   const [newCase, setNewCase] = useState({
     title: '',
     description: '',
@@ -66,7 +71,9 @@ const CaseSelection = () => {
 
   const fetchDiskImages = async () => {
     try {
-      console.log('Fetching disk images from:', `${process.env.REACT_APP_API_URL || 'http://localhost:8000/api'}/disk-images/`);
+      setDiskImagesError('');
+      setDiskImagesDebug('');
+      console.log('Fetching disk images from:', `${API_BASE_URL}/disk-images/`);
       const response = await forensicAPI.getDiskImages();
       console.log('Disk images response:', response);
       console.log('Response data:', response.data);
@@ -87,56 +94,50 @@ const CaseSelection = () => {
       console.error('Error response:', error.response);
       console.error('Error details:', error.response?.data);
       
-      // Show user-friendly error
-      alert(`Failed to load disk images: ${error.message}\n\nMake sure the backend server is running on http://localhost:8000`);
+      const apiBase = API_BASE_URL;
+      setDiskImagesError(error.message || 'Failed to load disk images');
+      setDiskImagesDebug(`API base: ${apiBase} | code: ${error?.response?.status || 'network'} | ${error?.response?.data?.error || ''}`);
+    }
+  };
+
+  const testDiskImages = async () => {
+    setDiskImagesError('');
+    const apiBase = API_BASE_URL;
+    try {
+      const res = await fetch(`${apiBase}/disk-images/`, { method: 'GET' });
+      const text = await res.text();
+      setDiskImagesDebug(`GET ${apiBase}/disk-images/ → ${res.status} ${res.statusText} | ${text.slice(0, 200)}`);
+    } catch (e) {
+      setDiskImagesDebug(`GET ${apiBase}/disk-images/ failed: ${e.message}`);
     }
   };
 
   const fetchCases = async () => {
     setLoading(true);
+    setCasesError('');
+    setCasesDebug('');
     try {
-      // Mock cases - replace with actual API call
-      const mockCases = [
-        {
-          id: 1,
-          case_id: 'CASE-2024-001',
-          title: 'Employee Data Breach Investigation',
-          description: 'Investigation of potential data exfiltration',
-          status: 'active',
-          priority: 'high',
-          created_at: '2024-11-20',
-          assigned_to: 'John Doe',
-          artifacts_count: 5678,
-          disk_image: 'nps-2008-jean.E01',
-        },
-        {
-          id: 2,
-          case_id: 'CASE-2024-002',
-          title: 'Malware Analysis - Workstation 42',
-          description: 'Suspected malware infection on employee workstation',
-          status: 'completed',
-          priority: 'medium',
-          created_at: '2024-11-15',
-          assigned_to: 'Jane Smith',
-          artifacts_count: 3421,
-          disk_image: 'workstation-42.dd',
-        },
-        {
-          id: 3,
-          case_id: 'CASE-2024-003',
-          title: 'Insider Threat Assessment',
-          description: 'Behavioral analysis of suspicious user activity',
-          status: 'pending',
-          priority: 'high',
-          created_at: '2024-11-18',
-          assigned_to: 'Mike Johnson',
-          artifacts_count: 1247,
-          disk_image: 'user-laptop.E01',
-        },
-      ];
-      setCases(mockCases);
+      const response = await fetch(`${API_BASE_URL}/cases/mongo-cases/`, {
+        method: 'GET',
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+      }
+      const data = await response.json();
+      // De-duplicate by case_id
+      const seen = new Set();
+      const deduped = data.filter((c) => {
+        if (!c.case_id || seen.has(c.case_id)) return false;
+        seen.add(c.case_id);
+        return true;
+      });
+      setCases(deduped);
+      setCasesDebug(`Loaded ${deduped.length} case(s) from ${API_BASE_URL}/cases/mongo-cases/`);
     } catch (error) {
       console.error('Error fetching cases:', error);
+      setCasesError(error.message || 'Failed to load cases');
+      setCasesDebug(`Failed to load cases from ${API_BASE_URL}/cases/mongo-cases/`);
     } finally {
       setLoading(false);
     }
@@ -208,10 +209,27 @@ const CaseSelection = () => {
   };
 
   const handleSelectCase = (caseData) => {
+    if (!caseData.id) {
+      alert('This case is not linked to a Django case record yet. Import it first.');
+      return;
+    }
     // Store selected case in localStorage
     localStorage.setItem('selectedCase', JSON.stringify(caseData));
-    // Navigate to dashboard
-    navigate('/dashboard');
+    // Navigate to basic info first
+    navigate('/basic-info');
+  };
+
+  const handleImportMongoCase = async (caseId) => {
+    setImportingCaseId(caseId);
+    try {
+      await forensicAPI.importMongoCase(caseId);
+      await fetchCases();
+    } catch (e) {
+      console.error('Failed to import case', e);
+      alert('Failed to import case into Django. Check server logs.');
+    } finally {
+      setImportingCaseId(null);
+    }
   };
 
   const handleLogout = () => {
@@ -264,12 +282,16 @@ const CaseSelection = () => {
     }
   };
 
-  const filteredCases = cases.filter(
-    (c) =>
-      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.case_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCases = cases.filter((c) => {
+    const title = c.title || c.case_id || '';
+    const description = c.description || c.image_path || '';
+    const query = searchQuery.toLowerCase();
+    return (
+      title.toLowerCase().includes(query) ||
+      (c.case_id || '').toLowerCase().includes(query) ||
+      description.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <Box
@@ -351,11 +373,28 @@ const CaseSelection = () => {
         </motion.div>
 
         {loading && <LinearProgress sx={{ mb: 3 }} />}
+        {casesError && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Failed to load cases: {casesError}
+            <Button onClick={fetchCases} size="small" sx={{ ml: 2 }}>
+              Retry
+            </Button>
+          </Alert>
+        )}
+        {casesDebug && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            {casesDebug}
+          </Alert>
+        )}
 
         {/* Cases Grid */}
         <Grid container spacing={3}>
-          {filteredCases.map((caseData, index) => (
-            <Grid item xs={12} md={6} lg={4} key={caseData.id}>
+          {filteredCases.map((caseData, index) => {
+            const status = (caseData.status || 'imported').toLowerCase();
+            const priority = (caseData.priority || 'medium').toLowerCase();
+            const title = caseData.title || caseData.case_id || 'Imported Case';
+            return (
+            <Grid item xs={12} md={6} lg={4} key={caseData.id || caseData.case_id || index}>
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -367,10 +406,10 @@ const CaseSelection = () => {
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
-                    border: `2px solid ${getStatusColor(caseData.status)}30`,
+                    border: `2px solid ${getStatusColor(status)}30`,
                     '&:hover': {
-                      border: `2px solid ${getStatusColor(caseData.status)}`,
-                      boxShadow: `0px 8px 24px ${getStatusColor(caseData.status)}30`,
+                      border: `2px solid ${getStatusColor(status)}`,
+                      boxShadow: `0px 8px 24px ${getStatusColor(status)}30`,
                     },
                   }}
                 >
@@ -378,20 +417,20 @@ const CaseSelection = () => {
                     {/* Status Badge */}
                     <Box display="flex" justifyContent="space-between" alignItems="start" mb={2}>
                       <Chip
-                        icon={getStatusIcon(caseData.status)}
-                        label={caseData.status.toUpperCase()}
+                        icon={getStatusIcon(status)}
+                        label={status.toUpperCase()}
                         size="small"
                         sx={{
-                          backgroundColor: getStatusColor(caseData.status),
+                          backgroundColor: getStatusColor(status),
                           color: 'white',
                           fontWeight: 600,
                         }}
                       />
                       <Chip
-                        label={caseData.priority.toUpperCase()}
+                        label={priority.toUpperCase()}
                         size="small"
                         sx={{
-                          backgroundColor: getPriorityColor(caseData.priority),
+                          backgroundColor: getPriorityColor(priority),
                           color: 'white',
                           fontWeight: 600,
                         }}
@@ -411,7 +450,7 @@ const CaseSelection = () => {
 
                     {/* Title */}
                     <Typography variant="h6" fontWeight={600} color={colors.text.primary} mb={1}>
-                      {caseData.title}
+                      {title}
                     </Typography>
 
                     {/* Description */}
@@ -427,7 +466,7 @@ const CaseSelection = () => {
                         WebkitBoxOrient: 'vertical',
                       }}
                     >
-                      {caseData.description}
+                      {caseData.description || caseData.image_path || 'Imported disk image'}
                     </Typography>
 
                     {/* Metadata */}
@@ -435,48 +474,60 @@ const CaseSelection = () => {
                       <Box display="flex" alignItems="center" gap={1}>
                         <CalendarToday sx={{ fontSize: 16, color: colors.text.secondary }} />
                         <Typography variant="caption" color={colors.text.secondary}>
-                          {caseData.created_at}
+                          {caseData.extraction_time || caseData.created_at || '-'}
                         </Typography>
                       </Box>
                       <Box display="flex" alignItems="center" gap={1}>
                         <Person sx={{ fontSize: 16, color: colors.text.secondary }} />
                         <Typography variant="caption" color={colors.text.secondary}>
-                          {caseData.assigned_to}
+                          {caseData.assigned_to || '-'}
                         </Typography>
                       </Box>
                       <Box display="flex" alignItems="center" gap={1}>
                         <Storage sx={{ fontSize: 16, color: colors.text.secondary }} />
                         <Typography variant="caption" color={colors.text.secondary}>
-                          {caseData.artifacts_count.toLocaleString()} artifacts
+                          {(caseData.summary?.counts?.timeline_events || 0).toLocaleString()} events
                         </Typography>
                       </Box>
                       <Box display="flex" alignItems="center" gap={1}>
                         <FolderOpen sx={{ fontSize: 16, color: colors.text.secondary }} />
                         <Typography variant="caption" color={colors.text.secondary}>
-                          {caseData.disk_image}
+                          {caseData.image_path || caseData.disk_image || '-'}
                         </Typography>
                       </Box>
                     </Box>
                   </CardContent>
 
                   <CardActions sx={{ p: 2, pt: 0 }}>
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      startIcon={<Visibility />}
-                      onClick={() => handleSelectCase(caseData)}
-                      sx={{
-                        background: colors.gradients.primary,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Open Case
-                    </Button>
+                    {!caseData.id ? (
+                      <Button
+                        fullWidth
+                        variant="outlined"
+                        onClick={() => handleImportMongoCase(caseData.case_id)}
+                        disabled={importingCaseId === caseData.case_id}
+                      >
+                        {importingCaseId === caseData.case_id ? 'Importing...' : 'Import Case'}
+                      </Button>
+                    ) : (
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<Visibility />}
+                        onClick={() => handleSelectCase(caseData)}
+                        sx={{
+                          background: colors.gradients.primary,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Open Case
+                      </Button>
+                    )}
                   </CardActions>
                 </Card>
               </motion.div>
             </Grid>
-          ))}
+          );
+          })}
         </Grid>
 
         {filteredCases.length === 0 && !loading && (
@@ -574,9 +625,26 @@ const CaseSelection = () => {
               </Select>
             </FormControl>
 
-            {availableDiskImages.length === 0 && (
+            {diskImagesError && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Failed to load disk images: {diskImagesError}. Make sure the backend is running on <strong>http://localhost:8000</strong>.
+                <Button onClick={fetchDiskImages} size="small" sx={{ ml: 2 }}>
+                  Retry
+                </Button>
+                <Button onClick={testDiskImages} size="small" sx={{ ml: 1 }}>
+                  Test API
+                </Button>
+              </Alert>
+            )}
+            {diskImagesDebug && (
               <Alert severity="info" sx={{ mb: 3 }}>
-                Place disk images (.E01, .DD, .RAW, .IMG) in the <strong>data/samples/</strong> directory to make them available for processing.
+                {diskImagesDebug}
+              </Alert>
+            )}
+
+            {availableDiskImages.length === 0 && !diskImagesError && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Place disk images (.E01, .E02, .DD, .RAW, .IMG, .TAR) in the <strong>data/samples/</strong> directory to make them available for processing.
               </Alert>
             )}
 

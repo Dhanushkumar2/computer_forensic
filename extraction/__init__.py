@@ -11,6 +11,7 @@ Available extractors:
 - EventLogArtifacts: Windows event logs (.evt format)
 - FileSystemArtifacts: Prefetch, link files, jump lists
 - ForensicExtractor: Main orchestrator for all extraction modules
+- AndroidTarExtractor: Android TAR sample artifact extractor
 """
 
 from .browser_artifacts import BrowserArtifacts
@@ -19,6 +20,7 @@ from .recycle_bin import RecycleBinArtifacts
 from .event_logs import EventLogArtifacts
 from .filesystem_artifacts import FileSystemArtifacts
 from .forensic_extractor import ForensicExtractor
+from .android_tar_extractor import AndroidTarExtractor
 
 __all__ = [
     'BrowserArtifacts',
@@ -26,5 +28,6 @@ __all__ = [
     'RecycleBinArtifacts',
     'EventLogArtifacts',
     'FileSystemArtifacts',
-    'ForensicExtractor'
+    'ForensicExtractor',
+    'AndroidTarExtractor'
 ]

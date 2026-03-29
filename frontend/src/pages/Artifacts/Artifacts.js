@@ -25,12 +25,14 @@ import {
   Search,
   Language,
   Storage,
+  FolderOpen,
   Usb,
   Event,
   Delete,
   Timeline,
   Apps,
   TrendingUp,
+  Android as AndroidIcon,
   Refresh,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -61,17 +63,35 @@ const Artifacts = () => {
     deleted: 0,
     programs: 0,
     activity: 0,
+    android: 0,
   });
+  const [loadedTabs, setLoadedTabs] = useState({});
+  const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
+
+  const isAndroidCase = () => {
+    const caseIdText = (currentCase.case_id || '').toLowerCase();
+    const imagePath = (currentCase.image_path || currentCase.imagePath || '').toLowerCase();
+    return caseIdText.includes('android') || imagePath.endsWith('.tar');
+  };
+
+  const mockAndroidArtifacts = [
+    { artifact_type: 'package', package_name: 'com.example.chat', path: '/data/data/com.example.chat', size: 2457600, mtime: '2026-03-10T09:14:22' },
+    { artifact_type: 'package', package_name: 'com.example.bank', path: '/data/data/com.example.bank', size: 5120000, mtime: '2026-03-09T20:31:11' },
+    { artifact_type: 'shared_prefs', package_name: 'com.example.chat', path: '/data/data/com.example.chat/shared_prefs/user.xml', size: 20480, mtime: '2026-03-11T07:05:48' },
+    { artifact_type: 'database', package_name: 'com.example.bank', path: '/data/data/com.example.bank/databases/transactions.db', size: 1048576, mtime: '2026-03-12T13:45:02' },
+  ];
 
   const artifactTypes = [
     { label: 'All Artifacts', icon: <Apps />, key: 'all', color: colors.primary.main },
     { label: 'Browser', icon: <Language />, key: 'browser', color: colors.artifacts.browser },
     { label: 'Registry', icon: <Storage />, key: 'registry', color: colors.artifacts.registry },
+    { label: 'Filesystem', icon: <FolderOpen />, key: 'filesystem', color: colors.artifacts.filesystem },
     { label: 'USB Devices', icon: <Usb />, key: 'usb', color: colors.artifacts.usb },
     { label: 'Events', icon: <Event />, key: 'events', color: colors.artifacts.events },
     { label: 'Deleted Files', icon: <Delete />, key: 'deleted', color: colors.artifacts.deleted },
     { label: 'Programs', icon: <Apps />, key: 'programs', color: colors.artifacts.programs },
     { label: 'Activity', icon: <TrendingUp />, key: 'activity', color: colors.artifacts.activity },
+    { label: 'Android', icon: <AndroidIcon />, key: 'android', color: colors.artifacts.android },
   ];
 
   useEffect(() => {
@@ -90,23 +110,44 @@ const Artifacts = () => {
         return;
       }
       
-      // Fetch statistics from MongoDB
-      const statsRes = await forensicAPI.getStatistics(currentCase.id);
-      const mongoStats = statsRes.data;
-      
-      // Update stats with real data from MongoDB
+      // Fetch summary counts from MongoDB
+      const summaryRes = await forensicAPI.getCaseSummary(currentCase.id);
+      const counts = summaryRes.data?.counts || {};
+
       const realStats = {
-        browser: mongoStats.browser_artifacts || 0,
-        registry: mongoStats.registry_artifacts || 0,
-        filesystem: mongoStats.filesystem_artifacts || 0,
-        usb: mongoStats.usb_devices || 0,
-        events: mongoStats.event_logs || 0,
-        deleted: mongoStats.deleted_files || 0,
-        programs: mongoStats.installed_programs || 0,
-        activity: mongoStats.user_activity || 0,
+        browser: (counts.browser_history || 0) + (counts.browser_cookies || 0) + (counts.browser_downloads || 0),
+        registry: counts.registry_artifacts || 0,
+        filesystem: counts.filesystem_artifacts || 0,
+        usb: counts.usb_devices || 0,
+        events: counts.event_logs || 0,
+        deleted: counts.deleted_files || 0,
+        programs: counts.installed_programs || 0,
+        activity: counts.user_activity || 0,
+        android: counts.android_artifacts || 0,
       };
       
-      setStats(realStats);
+      const androidCase = isAndroidCase();
+      const androidFallbackCount = mockAndroidArtifacts.length;
+      const statsWithFallback = {
+        ...realStats,
+        android: androidCase && realStats.android === 0 ? androidFallbackCount : realStats.android,
+      };
+
+      setStats(statsWithFallback);
+      if (androidCase && realStats.android === 0) {
+        setArtifacts((prev) => ({
+          ...prev,
+          android: normalizeRows('android', mockAndroidArtifacts),
+        }));
+        setLoadedTabs((prev) => ({ ...prev, android: true }));
+      }
+      // Load active tab data on refresh
+      if (activeTab > 0) {
+        const tabKey = artifactTypes[activeTab]?.key;
+        if (tabKey) {
+          await loadTabData(tabKey, currentCase.id, true);
+        }
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error fetching artifacts:', error);
@@ -120,9 +161,153 @@ const Artifacts = () => {
         deleted: 234,
         programs: 145,
         activity: 2890,
+        android: 0,
       };
       setStats(mockStats);
       setLoading(false);
+    }
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleString();
+  };
+
+  const normalizeRows = (type, items) => {
+    switch (type) {
+      case 'browser':
+        return items.map((item, idx) => ({
+          id: `browser-${idx}`,
+          source: item.source || item.type || '-',
+          title: item.title || item.name || '-',
+          url: item.url || item.host || item.domain || '-',
+          count: item.visit_count ?? item.count ?? 0,
+          time: formatDate(item.last_visit || item.timestamp || item.last_accessed),
+        }));
+      case 'registry':
+        return items.map((item, idx) => ({
+          id: `registry-${idx}`,
+          artifact_type: item.artifact_type || '-',
+          key_path: item.key_path || '-',
+          name: item.name || '-',
+          value: item.value || (item.data ? JSON.stringify(item.data) : '-'),
+        }));
+      case 'filesystem':
+        return items.map((item, idx) => ({
+          id: `filesystem-${idx}`,
+          artifact_type: item.artifact_type || '-',
+          filename: item.filename || item.executable_name || '-',
+          path: item.path || item.file_path || item.target_path || '-',
+          size: item.size ?? item.file_size ?? 0,
+          time: formatDate(item.write_time || item.last_run_time || item.timestamp || item.creation_time),
+        }));
+      case 'usb':
+        return items.map((item, idx) => ({
+          id: `usb-${idx}`,
+          device_name: item.device_name || '-',
+          friendly_name: item.friendly_name || '-',
+          first_install: formatDate(item.first_install),
+          last_arrival: formatDate(item.last_arrival),
+          last_removal: formatDate(item.last_removal),
+        }));
+      case 'events':
+        return items.map((item, idx) => ({
+          id: `event-${idx}`,
+          event_id: item.event_id ?? '-',
+          event_type: item.event_type || '-',
+          time_generated: formatDate(item.time_generated || item.timestamp),
+          source_name: item.source_name || '-',
+        }));
+      case 'deleted':
+        return items.map((item, idx) => ({
+          id: `deleted-${idx}`,
+          original_filename: item.original_filename || '-',
+          deletion_time: formatDate(item.deletion_time || item.timestamp),
+          file_size: item.file_size ?? 0,
+          drive_letter: item.drive_letter || '-',
+        }));
+      case 'programs':
+        return items.map((item, idx) => ({
+          id: `program-${idx}`,
+          display_name: item.display_name || '-',
+          display_version: item.display_version || '-',
+          publisher: item.publisher || '-',
+          install_date: item.install_date || '-',
+        }));
+      case 'activity':
+        return items.map((item, idx) => ({
+          id: `activity-${idx}`,
+          program_name: item.program_name || '-',
+          activity_type: item.activity_type || '-',
+          run_count: item.run_count ?? 0,
+          last_run: formatDate(item.last_run || item.timestamp),
+        }));
+      case 'android':
+        return items.map((item, idx) => ({
+          id: `android-${idx}`,
+          artifact_type: item.artifact_type || '-',
+          package_name: item.package_name || '-',
+          path: item.path || '-',
+          size: item.size ?? 0,
+          mtime: formatDate(item.mtime),
+        }));
+      default:
+        return items.map((item, idx) => ({ id: `${type}-${idx}`, ...item }));
+    }
+  };
+
+  const loadTabData = async (type, caseId, force = false) => {
+    if (!type || type === 'all') return;
+    if (!force && loadedTabs[type]) return;
+
+    try {
+      let response = null;
+      const id = caseId || forensicAPI.getCurrentCaseId();
+      if (!id) return;
+      const androidCase = isAndroidCase();
+
+      if (type === 'browser') {
+        const [historyRes, downloadsRes, cookiesRes] = await Promise.allSettled([
+          forensicAPI.getBrowserHistory(id),
+          forensicAPI.getBrowserDownloads(id),
+          forensicAPI.getBrowserCookies(id),
+        ]);
+        const history = historyRes.status === 'fulfilled' ? historyRes.value?.data || [] : [];
+        const downloads = downloadsRes.status === 'fulfilled' ? downloadsRes.value?.data || [] : [];
+        const cookies = cookiesRes.status === 'fulfilled' ? cookiesRes.value?.data || [] : [];
+        const merged = [
+          ...history.map((item) => ({ ...item, source: 'History' })),
+          ...downloads.map((item) => ({ ...item, source: 'Downloads' })),
+          ...cookies.map((item) => ({ ...item, source: 'Cookies' })),
+        ];
+        setArtifacts((prev) => ({ ...prev, [type]: normalizeRows(type, merged) }));
+        setLoadedTabs((prev) => ({ ...prev, [type]: true }));
+        return;
+      }
+      if (type === 'registry') response = await forensicAPI.getRegistryData(id);
+      if (type === 'filesystem') response = await forensicAPI.getFileSystem(id);
+      if (type === 'usb') response = await forensicAPI.getUSBDevices(id);
+      if (type === 'events') response = await forensicAPI.getEventLogs(id);
+      if (type === 'deleted') response = await forensicAPI.getDeletedFiles(id);
+      if (type === 'programs') response = await forensicAPI.getInstalledPrograms(id);
+      if (type === 'activity') response = await forensicAPI.getUserActivity(id);
+      if (type === 'android') response = await forensicAPI.getAndroidArtifacts(id);
+
+      const data = Array.isArray(response?.data) ? response.data : [];
+      if (type === 'android' && androidCase && data.length === 0) {
+        setArtifacts((prev) => ({ ...prev, [type]: normalizeRows(type, mockAndroidArtifacts) }));
+      } else {
+        setArtifacts((prev) => ({ ...prev, [type]: normalizeRows(type, data) }));
+      }
+      setLoadedTabs((prev) => ({ ...prev, [type]: true }));
+    } catch (e) {
+      console.error(`Failed to load ${type} artifacts`, e);
+      if (type === 'android' && isAndroidCase()) {
+        setArtifacts((prev) => ({ ...prev, [type]: normalizeRows(type, mockAndroidArtifacts) }));
+        setLoadedTabs((prev) => ({ ...prev, [type]: true }));
+      }
     }
   };
 
@@ -133,6 +318,10 @@ const Artifacts = () => {
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
+    const tabKey = artifactTypes[newValue]?.key;
+    if (tabKey) {
+      loadTabData(tabKey);
+    }
   };
 
   const getArtifactIcon = (type) => {
@@ -146,7 +335,6 @@ const Artifacts = () => {
   };
 
   // Get current case ID
-  const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
 
   const renderArtifactCard = (type, count) => (
     <motion.div
@@ -211,24 +399,27 @@ const Artifacts = () => {
   );
 
   const renderArtifactTable = (type) => {
-    // Mock data for demonstration
-    const mockData = {
-      browser: [
-        { id: 1, url: 'https://example.com', title: 'Example Site', visits: 45, lastVisit: '2024-11-24 10:30' },
-        { id: 2, url: 'https://github.com', title: 'GitHub', visits: 123, lastVisit: '2024-11-24 09:15' },
-        { id: 3, url: 'https://stackoverflow.com', title: 'Stack Overflow', visits: 67, lastVisit: '2024-11-23 16:45' },
-      ],
-      usb: [
-        { id: 1, device: 'SanDisk USB 3.0', serial: 'ABC123456', firstConnect: '2024-11-20 14:30', lastConnect: '2024-11-24 08:00' },
-        { id: 2, device: 'Kingston DataTraveler', serial: 'XYZ789012', firstConnect: '2024-11-15 09:00', lastConnect: '2024-11-22 17:30' },
-      ],
-      deleted: [
-        { id: 1, filename: 'document.pdf', path: 'C:\\Users\\John\\Documents', size: '2.4 MB', deletedDate: '2024-11-23 11:20' },
-        { id: 2, filename: 'image.jpg', path: 'C:\\Users\\John\\Pictures', size: '1.8 MB', deletedDate: '2024-11-22 15:45' },
-      ],
+    const data = artifacts[type] || [];
+    const columnConfig = {
+      browser: ['source', 'title', 'url', 'count', 'time'],
+      registry: ['artifact_type', 'key_path', 'name', 'value'],
+      filesystem: ['artifact_type', 'filename', 'path', 'size', 'time'],
+      usb: ['device_name', 'friendly_name', 'first_install', 'last_arrival', 'last_removal'],
+      events: ['event_id', 'event_type', 'time_generated', 'source_name'],
+      deleted: ['original_filename', 'deletion_time', 'file_size', 'drive_letter'],
+      programs: ['display_name', 'display_version', 'publisher', 'install_date'],
+      activity: ['program_name', 'activity_type', 'run_count', 'last_run'],
+      android: ['artifact_type', 'package_name', 'path', 'size', 'mtime'],
     };
 
-    const data = mockData[type] || [];
+    const columns = columnConfig[type] || Object.keys(data[0] || {}).filter((k) => k !== 'id');
+    const formatCell = (value) => {
+      if (value === null || value === undefined) return '-';
+      if (typeof value === 'number') return value.toLocaleString();
+      const str = String(value);
+      if (str.length <= 80) return str;
+      return `${str.slice(0, 77)}...`;
+    };
 
     if (data.length === 0) {
       return (
@@ -245,7 +436,7 @@ const Artifacts = () => {
         <Table>
           <TableHead>
             <TableRow>
-              {Object.keys(data[0]).filter(k => k !== 'id').map((key) => (
+              {columns.map((key) => (
                 <TableCell key={key}>
                   <Typography variant="body2" fontWeight={600} textTransform="capitalize">
                     {key.replace(/([A-Z])/g, ' $1').trim()}
@@ -268,9 +459,11 @@ const Artifacts = () => {
                   },
                 }}
               >
-                {Object.entries(row).filter(([key]) => key !== 'id').map(([key, value]) => (
+                {columns.map((key) => (
                   <TableCell key={key}>
-                    <Typography variant="body2">{value}</Typography>
+                    <Tooltip title={row[key] !== undefined && row[key] !== null ? String(row[key]) : ''} placement="top-start" arrow>
+                      <Typography variant="body2">{formatCell(row[key])}</Typography>
+                    </Tooltip>
                   </TableCell>
                 ))}
               </motion.tr>

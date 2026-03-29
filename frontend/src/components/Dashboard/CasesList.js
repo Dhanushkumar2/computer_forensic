@@ -65,9 +65,26 @@ const CasesList = ({ cases = [] }) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {mockCases.map((caseItem, index) => (
+              {mockCases.map((caseItem, index) => {
+                const displayName = caseItem.name
+                  || caseItem.title
+                  || caseItem.case_id
+                  || `Case-${caseItem.id || index + 1}`;
+                const displayStatus = caseItem.status || 'pending';
+                const artifactsCount = (
+                  caseItem.artifacts
+                  ?? caseItem.summary?.total_artifacts
+                  ?? caseItem.summary?.total_link_files
+                  ?? 0
+                );
+                const displayDate = caseItem.date
+                  || caseItem.created_at
+                  || caseItem.extraction_time
+                  || caseItem.updated_at
+                  || null;
+                return (
                 <motion.tr
-                  key={caseItem.id}
+                  key={caseItem.case_id || caseItem.id || index}
                   component={TableRow}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -78,28 +95,28 @@ const CasesList = ({ cases = [] }) => {
                 >
                   <TableCell>
                     <Typography variant="body2" fontWeight={500}>
-                      {caseItem.name}
+                      {displayName}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Chip
-                      label={caseItem.status}
+                      label={displayStatus}
                       size="small"
                       sx={{
-                        bgcolor: `${getStatusColor(caseItem.status)}20`,
-                        color: getStatusColor(caseItem.status),
+                        bgcolor: `${getStatusColor(displayStatus)}20`,
+                        color: getStatusColor(displayStatus),
                         fontWeight: 500,
                       }}
                     />
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2">
-                      {caseItem.artifacts.toLocaleString()}
+                      {Number(artifactsCount || 0).toLocaleString()}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary">
-                      {new Date(caseItem.date).toLocaleDateString()}
+                      {displayDate ? new Date(displayDate).toLocaleDateString() : '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -117,7 +134,7 @@ const CasesList = ({ cases = [] }) => {
                     </IconButton>
                   </TableCell>
                 </motion.tr>
-              ))}
+              )})}
             </TableBody>
           </Table>
         </TableContainer>

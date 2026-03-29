@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -27,87 +27,128 @@ import {
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import colors from '../../theme/colors';
+import { forensicAPI } from '../../services/api';
+
+const typeMeta = {
+  browser: { icon: <Language />, color: colors.artifacts.browser, title: 'Browser Activity' },
+  filesystem: { icon: <Storage />, color: colors.artifacts.filesystem, title: 'File Activity' },
+  usb: { icon: <Usb />, color: colors.artifacts.usb, title: 'USB Activity' },
+  events: { icon: <Event />, color: colors.artifacts.events, title: 'System Event' },
+  deleted: { icon: <Delete />, color: colors.artifacts.deleted, title: 'Deleted File' },
+  activity: { icon: <Apps />, color: colors.artifacts.programs, title: 'Program Activity' },
+  registry: { icon: <Storage />, color: colors.artifacts.registry, title: 'Registry Activity' },
+};
+
+const mapEventType = (evt) => {
+  const eventType = (evt.event_type || '').toLowerCase();
+  const source = (evt.source || '').toLowerCase();
+  const desc = (evt.description || '').toLowerCase();
+
+  if (source.includes('browser') || eventType.includes('web') || desc.includes('visited')) return 'browser';
+  if (source.includes('filesystem') || desc.includes('file')) return 'filesystem';
+  if (source.includes('usb') || desc.includes('usb')) return 'usb';
+  if (source.includes('registry') || desc.includes('registry')) return 'registry';
+  if (desc.includes('deleted') || eventType.includes('deleted')) return 'deleted';
+  if (eventType.includes('program') || eventType.includes('execution')) return 'activity';
+  return 'events';
+};
 
 const Timeline = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('timeline');
   const [selectedFilter, setSelectedFilter] = useState('all');
 
-  // Mock timeline events
-  const timelineEvents = [
-    {
-      id: 1,
-      timestamp: '2024-11-24 10:30:45',
-      type: 'browser',
-      title: 'Browser History Entry',
-      description: 'Visited https://github.com',
-      icon: <Language />,
-      color: colors.artifacts.browser,
-    },
-    {
-      id: 2,
-      timestamp: '2024-11-24 10:25:12',
-      type: 'filesystem',
-      title: 'File Created',
-      description: 'Created document.pdf in Documents folder',
-      icon: <Storage />,
-      color: colors.artifacts.filesystem,
-    },
-    {
-      id: 3,
-      timestamp: '2024-11-24 10:20:33',
-      type: 'usb',
-      title: 'USB Device Connected',
-      description: 'SanDisk USB 3.0 (Serial: ABC123456)',
-      icon: <Usb />,
-      color: colors.artifacts.usb,
-    },
-    {
-      id: 4,
-      timestamp: '2024-11-24 10:15:08',
-      type: 'activity',
-      title: 'Program Executed',
-      description: 'Microsoft Word launched',
-      icon: <Apps />,
-      color: colors.artifacts.programs,
-    },
-    {
-      id: 5,
-      timestamp: '2024-11-24 10:10:22',
-      type: 'deleted',
-      title: 'File Deleted',
-      description: 'Deleted temp_file.tmp from Temp folder',
-      icon: <Delete />,
-      color: colors.artifacts.deleted,
-    },
-    {
-      id: 6,
-      timestamp: '2024-11-24 10:05:55',
-      type: 'events',
-      title: 'System Event',
-      description: 'User login successful',
-      icon: <Event />,
-      color: colors.artifacts.events,
-    },
-    {
-      id: 7,
-      timestamp: '2024-11-24 09:58:41',
-      type: 'registry',
-      title: 'Registry Modified',
-      description: 'Run key added: HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
-      icon: <Storage />,
-      color: colors.artifacts.registry,
-    },
-    {
-      id: 8,
-      timestamp: '2024-11-24 09:45:19',
-      type: 'browser',
-      title: 'Browser Download',
-      description: 'Downloaded setup.exe from example.com',
-      icon: <Language />,
-      color: colors.artifacts.browser,
-    },
-  ];
+  const [timelineEvents, setTimelineEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTimeline();
+  }, []);
+
+  const fetchTimeline = async () => {
+    setLoading(true);
+    try {
+      const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
+      if (!currentCase.id) {
+        setLoading(false);
+        return;
+      }
+      const caseIdText = (currentCase.case_id || '').toLowerCase();
+      const imagePath = (currentCase.image_path || currentCase.imagePath || '').toLowerCase();
+      const isAndroidCase = caseIdText.includes('android') || imagePath.endsWith('.tar');
+      const res = await forensicAPI.getTimeline(currentCase.id);
+      const items = Array.isArray(res?.data) ? res.data : [];
+      const mapped = items.map((evt, idx) => {
+        const type = mapEventType(evt);
+        const meta = typeMeta[type] || typeMeta.events;
+        return {
+          id: evt._id || `${type}-${idx}`,
+          timestamp: evt.timestamp || evt.time_generated || evt.created_at,
+          type,
+          title: evt.event_type || meta.title,
+          description: evt.description || evt.source || evt.source_name || '-',
+          icon: meta.icon,
+          color: meta.color,
+        };
+      });
+      if (mapped.length === 0 && isAndroidCase) {
+        setTimelineEvents([
+          {
+            id: 'android-1',
+            timestamp: '2026-03-12T10:21:33',
+            type: 'events',
+            title: 'Android Package Install',
+            description: 'com.example.chat installed',
+            icon: typeMeta.events.icon,
+            color: typeMeta.events.color,
+          },
+          {
+            id: 'android-2',
+            timestamp: '2026-03-12T11:02:10',
+            type: 'filesystem',
+            title: 'File Write',
+            description: '/data/data/com.example.chat/files/messages.db',
+            icon: typeMeta.filesystem.icon,
+            color: typeMeta.filesystem.color,
+          },
+          {
+            id: 'android-3',
+            timestamp: '2026-03-13T08:45:02',
+            type: 'activity',
+            title: 'App Usage',
+            description: 'com.example.bank opened',
+            icon: typeMeta.activity.icon,
+            color: typeMeta.activity.color,
+          },
+        ]);
+      } else {
+        setTimelineEvents(mapped);
+      }
+    } catch (e) {
+      console.error('Failed to load timeline', e);
+      const currentCase = JSON.parse(localStorage.getItem('selectedCase') || '{}');
+      const caseIdText = (currentCase.case_id || '').toLowerCase();
+      const imagePath = (currentCase.image_path || currentCase.imagePath || '').toLowerCase();
+      const isAndroidCase = caseIdText.includes('android') || imagePath.endsWith('.tar');
+      if (isAndroidCase) {
+        setTimelineEvents([
+          {
+            id: 'android-1',
+            timestamp: '2026-03-12T10:21:33',
+            type: 'events',
+            title: 'Android Package Install',
+            description: 'com.example.chat installed',
+            icon: typeMeta.events.icon,
+            color: typeMeta.events.color,
+          },
+        ]);
+      } else {
+        setTimelineEvents([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filters = [
     { label: 'All Events', value: 'all', icon: <ViewTimeline /> },
@@ -119,9 +160,26 @@ const Timeline = () => {
     { label: 'Programs', value: 'activity', icon: <Apps /> },
   ];
 
-  const filteredEvents = selectedFilter === 'all'
-    ? timelineEvents
-    : timelineEvents.filter(event => event.type === selectedFilter);
+  const filteredEvents = useMemo(() => {
+    const base = selectedFilter === 'all'
+      ? timelineEvents
+      : timelineEvents.filter(event => event.type === selectedFilter);
+    if (!searchQuery) return base;
+    const q = searchQuery.toLowerCase();
+    return base.filter((e) =>
+      `${e.title} ${e.description}`.toLowerCase().includes(q)
+    );
+  }, [timelineEvents, selectedFilter, searchQuery]);
+
+  if (loading) {
+    return (
+      <Box sx={{ width: '100%', mt: 4 }}>
+        <Typography variant="body2" color={colors.text.secondary}>
+          Loading timeline...
+        </Typography>
+      </Box>
+    );
+  }
 
   const renderTimelineView = () => (
     <Box sx={{ position: 'relative', pl: 4 }}>

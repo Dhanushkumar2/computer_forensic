@@ -75,7 +75,8 @@ DATABASES = {
 
 # Load database configuration
 try:
-    config_path = BASE_DIR.parent.parent / 'config' / 'db_config.yaml'
+    # Resolve config from project root (forensic_ir_app/config)
+    config_path = BASE_DIR.parent / 'config' / 'db_config.yaml'
     with open(config_path, 'r') as f:
         db_config = yaml.safe_load(f)
     
@@ -83,15 +84,38 @@ try:
     MONGODB_CONFIG = db_config['mongodb']
     
     # Update PostgreSQL config if available
+    pg_config = None
     if 'postgres' in db_config:
         pg_config = db_config['postgres']
+    elif 'postgresql' in db_config:
+        pg_config = db_config['postgresql']
+
+    if pg_config:
         DATABASES['default'].update({
-            'NAME': pg_config['database'],
-            'USER': pg_config['user'],
-            'PASSWORD': pg_config['password'],
-            'HOST': pg_config['host'],
-            'PORT': pg_config['port'],
+            'NAME': pg_config.get('database', DATABASES['default']['NAME']),
+            'USER': pg_config.get('user', DATABASES['default']['USER']),
+            'PASSWORD': pg_config.get('password', DATABASES['default']['PASSWORD']),
+            'HOST': pg_config.get('host', DATABASES['default']['HOST']),
+            'PORT': pg_config.get('port', DATABASES['default']['PORT']),
         })
+
+        # Try a fast connection probe; fall back to SQLite if unavailable
+        try:
+            import psycopg2
+            psycopg2.connect(
+                dbname=DATABASES['default']['NAME'],
+                user=DATABASES['default']['USER'],
+                password=DATABASES['default']['PASSWORD'],
+                host=DATABASES['default']['HOST'],
+                port=DATABASES['default']['PORT'],
+                connect_timeout=2,
+            ).close()
+        except Exception as e:
+            print(f"Warning: PostgreSQL unavailable, falling back to SQLite: {e}")
+            DATABASES['default'] = {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
         
 except Exception as e:
     print(f"Warning: Could not load database config: {e}")
@@ -160,14 +184,10 @@ REST_FRAMEWORK = {
 }
 
 # CORS settings for frontend integration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React development server
-    "http://127.0.0.1:3000",
-    "http://localhost:8080",  # Vue development server
-    "http://127.0.0.1:8080",
-]
-
+# CORS fully open for development
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = ["*"]
 
 # Logging configuration
 LOGGING = {

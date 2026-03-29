@@ -10,11 +10,19 @@ from datetime import datetime
 import pyewf
 import pytsk3
 
-from .browser_artifacts import BrowserArtifacts
-from .registry_artifacts import RegistryArtifacts
-from .recycle_bin import RecycleBinArtifacts
-from .event_logs import EventLogArtifacts
-from .filesystem_artifacts import FileSystemArtifacts
+try:
+    from .browser_artifacts import BrowserArtifacts
+    from .registry_artifacts import RegistryArtifacts
+    from .recycle_bin import RecycleBinArtifacts
+    from .event_logs import EventLogArtifacts
+    from .filesystem_artifacts import FileSystemArtifacts
+except ImportError:
+    # Allow direct script execution: `python extraction/forensic_extractor.py ...`
+    from browser_artifacts import BrowserArtifacts
+    from registry_artifacts import RegistryArtifacts
+    from recycle_bin import RecycleBinArtifacts
+    from event_logs import EventLogArtifacts
+    from filesystem_artifacts import FileSystemArtifacts
 
 
 class EWFImgInfo(pytsk3.Img_Info):

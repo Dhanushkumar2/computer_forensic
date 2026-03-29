@@ -2,6 +2,7 @@ import pyewf
 import pytsk3
 import json
 import os
+from pathlib import Path
 
 class EWFImgInfo(pytsk3.Img_Info):
     def __init__(self, ewf_handle):
@@ -92,5 +93,7 @@ def extract_partial_data(image_path, output_file="sample_raw.bin", bytes_to_read
 
 
 if __name__ == "__main__":
-    extract_metadata("forensic_ir_app/data/samples/nps-2008-jean.E01", "sample_metadata.json")
-    extract_partial_data("forensic_ir_app/data/samples/nps-2008-jean.E01", "sample_raw.bin", bytes_to_read=50 * 1024 * 1024)
+    base_dir = Path(__file__).resolve().parent.parent
+    image_path = base_dir / "data" / "samples" / "nps-2008-jean.E01"
+    extract_metadata(str(image_path), "sample_metadata.json")
+    extract_partial_data(str(image_path), "sample_raw.bin", bytes_to_read=50 * 1024 * 1024)

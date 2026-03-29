@@ -13,53 +13,39 @@ import {
 import { Add, Search, FilterList } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import colors from '../../theme/colors';
+import { forensicAPI } from '../../services/api';
 
 const Cases = () => {
   const [cases, setCases] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const mockCases = [
-    {
-      id: 1,
-      name: 'Case-2024-001',
-      description: 'Corporate data breach investigation',
-      status: 'Active',
-      priority: 'High',
-      artifacts: 1250,
-      date: '2024-11-20',
-    },
-    {
-      id: 2,
-      name: 'Case-2024-002',
-      description: 'Malware analysis and containment',
-      status: 'Pending',
-      priority: 'Medium',
-      artifacts: 850,
-      date: '2024-11-19',
-    },
-    {
-      id: 3,
-      name: 'Case-2024-003',
-      description: 'Insider threat investigation',
-      status: 'Critical',
-      priority: 'Critical',
-      artifacts: 2100,
-      date: '2024-11-18',
-    },
-  ];
-
   useEffect(() => {
-    setCases(mockCases);
+    const load = async () => {
+      try {
+        const response = await forensicAPI.getMongoCases();
+        const data = response.data || [];
+        const seen = new Set();
+        const deduped = data.filter((c) => {
+          if (!c.case_id || seen.has(c.case_id)) return false;
+          seen.add(c.case_id);
+          return true;
+        });
+        setCases(deduped);
+      } catch (e) {
+        console.error('Failed to load cases', e);
+      }
+    };
+    load();
   }, []);
 
   const getPriorityColor = (priority) => {
-    const colors = {
-      Critical: '#B85450',
-      High: '#D4A574',
-      Medium: '#8B9DAF',
-      Low: '#7A9B76',
+    const map = {
+      critical: colors.status.critical,
+      high: colors.status.warning,
+      medium: colors.status.info,
+      low: colors.status.success,
     };
-    return colors[priority] || '#8B9DAF';
+    return map[String(priority || '').toLowerCase()] || colors.text.secondary;
   };
 
   return (
@@ -132,7 +118,7 @@ const Cases = () => {
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                     <Typography variant="h6" fontWeight={600}>
-                      {caseItem.name}
+                      {caseItem.case_id}
                     </Typography>
                     <Chip
                       label={caseItem.status}
@@ -144,14 +130,14 @@ const Cases = () => {
                     />
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    {caseItem.description}
+                    {caseItem.image_path || 'Imported disk image'}
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="caption" color="text.secondary">
-                      {caseItem.artifacts} artifacts
+                      {caseItem.summary?.counts?.timeline_events || caseItem.summary?.total_event_log_entries || 0} events
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {new Date(caseItem.date).toLocaleDateString()}
+                      {caseItem.extraction_time ? new Date(caseItem.extraction_time).toLocaleDateString() : '-'}
                     </Typography>
                   </Box>
                 </CardContent>

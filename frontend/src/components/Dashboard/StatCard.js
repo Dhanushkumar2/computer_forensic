@@ -2,34 +2,39 @@ import React from 'react';
 import { Card, CardContent, Typography, Box, alpha } from '@mui/material';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown } from '@mui/icons-material';
+import colors from '../../theme/colors';
 
 const StatCard = ({ title, value, icon, color, trend }) => {
   const isPositive = trend?.startsWith('+');
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      transition={{ type: 'spring', stiffness: 300 }}
-    >
+    <motion.div whileHover={{ y: -6 }} transition={{ type: 'spring', stiffness: 280 }}>
       <Card
+        className="cyber-panel"
         sx={{
           height: '100%',
-          background: `linear-gradient(135deg, ${alpha(color, 0.1)} 0%, ${alpha(
-            color,
-            0.05
-          )} 100%)`,
-          border: `1px solid ${alpha(color, 0.2)}`,
           position: 'relative',
           overflow: 'hidden',
+          border: `1px solid ${alpha(color, 0.45)}`,
+          background: `linear-gradient(145deg, ${alpha(color, 0.16)} 0%, ${alpha(colors.background.card, 0.85)} 70%)`,
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: 3,
+            background: `linear-gradient(90deg, ${alpha(color, 0)} 0%, ${color} 50%, ${alpha(color, 0)} 100%)`,
+          },
         }}
       >
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <Box>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              <Typography variant="body2" color="text.secondary" sx={{ letterSpacing: '0.06em' }} gutterBottom>
                 {title}
               </Typography>
-              <Typography variant="h4" fontWeight={700} color={color} sx={{ mb: 1 }}>
+              <Typography variant="h4" fontWeight={800} color={color} sx={{ mb: 1 }}>
                 {value}
               </Typography>
               {trend && (
@@ -39,47 +44,30 @@ const StatCard = ({ title, value, icon, color, trend }) => {
                   ) : (
                     <TrendingDown sx={{ fontSize: 16, color: 'error.main' }} />
                   )}
-                  <Typography
-                    variant="caption"
-                    color={isPositive ? 'success.main' : 'error.main'}
-                    fontWeight={600}
-                  >
+                  <Typography variant="caption" color={isPositive ? 'success.main' : 'error.main'} fontWeight={700}>
                     {trend}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    vs last month
+                    threat cycle
                   </Typography>
                 </Box>
               )}
             </Box>
             <Box
               sx={{
-                width: 56,
-                height: 56,
+                width: 54,
+                height: 54,
                 borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                bgcolor: alpha(color, 0.15),
-                color: color,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: alpha(color, 0.16),
+                color,
+                boxShadow: `0 0 16px ${alpha(color, 0.34)}`,
               }}
             >
               {icon}
             </Box>
           </Box>
-
-          {/* Decorative element */}
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: -20,
-              right: -20,
-              width: 100,
-              height: 100,
-              borderRadius: '50%',
-              bgcolor: alpha(color, 0.05),
-            }}
-          />
         </CardContent>
       </Card>
     </motion.div>

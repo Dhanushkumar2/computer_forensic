@@ -8,6 +8,7 @@ import theme from './theme/theme';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login/Login';
 import CaseSelection from './pages/CaseSelection/CaseSelection';
+import BasicInfo from './pages/BasicInfo/BasicInfo';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Cases from './pages/Cases/Cases';
 import CaseDetails from './pages/Cases/CaseDetails';
@@ -62,7 +63,8 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Routes>
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/" element={<Navigate to="/basic-info" replace />} />
+                      <Route path="/basic-info" element={<BasicInfo />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/cases" element={<Cases />} />
                       <Route path="/cases/:id" element={<CaseDetails />} />

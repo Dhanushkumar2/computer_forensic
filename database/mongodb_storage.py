@@ -6,6 +6,7 @@ MongoDB storage module for forensic artifacts
 
 import json
 from datetime import datetime
+from pathlib import Path
 from pymongo import MongoClient
 from bson import ObjectId
 import yaml
@@ -14,11 +15,28 @@ import yaml
 class ForensicMongoStorage:
     def __init__(self, config_path="config/db_config.yaml"):
         """Initialize MongoDB connection"""
-        with open(config_path, "r") as f:
-            config = yaml.safe_load(f)
-        
-        self.client = MongoClient(config["mongodb"]["uri"])
-        self.db = self.client[config["mongodb"]["database"]]
+        config = None
+        config_path = Path(config_path)
+        if not config_path.is_file():
+            fallback = Path(__file__).resolve().parent.parent / "config" / "db_config.yaml"
+            if fallback.is_file():
+                config_path = fallback
+        try:
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f)
+        except Exception:
+            config = {"mongodb": {"host": "localhost", "port": 27017, "database": "forensic_ir"}}
+
+        mongo_config = config["mongodb"]
+        mongo_uri = mongo_config.get("uri")
+        if not mongo_uri:
+            mongo_host = mongo_config.get("host", "localhost")
+            mongo_port = mongo_config.get("port", 27017)
+            mongo_uri = f"mongodb://{mongo_host}:{mongo_port}/"
+
+        mongo_database = mongo_config.get("database", "forensics")
+        self.client = MongoClient(mongo_uri)
+        self.db = self.client[mongo_database]
         
         # Define collections
         self.collections = {
@@ -31,7 +49,10 @@ class ForensicMongoStorage:
             'timeline_events': self.db.timeline_events,
             'usb_devices': self.db.usb_devices,
             'installed_programs': self.db.installed_programs,
-            'user_activity': self.db.user_activity
+            'user_activity': self.db.user_activity,
+            'android_artifacts': self.db.android_artifacts,
+            'ml_anomalies': self.db.ml_anomalies,
+            'android_ml_anomalies': self.db.android_ml_anomalies
         }
         
         # Create indexes for better performance
@@ -66,25 +87,167 @@ class ForensicMongoStorage:
             self.collections['user_activity'].create_index([("case_id", 1), ("user_profile", 1)])
             self.collections['user_activity'].create_index("program_name")
             self.collections['user_activity'].create_index("last_run")
+
+            # Android artifacts indexes
+            self.collections['android_artifacts'].create_index([("case_id", 1), ("artifact_type", 1)])
+            self.collections['android_artifacts'].create_index("package_name")
+            self.collections['android_artifacts'].create_index("path")
+
+            # ML anomalies indexes
+            self.collections['ml_anomalies'].create_index([("case_id", 1), ("anomaly_score", -1)])
+            self.collections['ml_anomalies'].create_index("label")
+
+            # Android ML anomalies indexes
+            self.collections['android_ml_anomalies'].create_index([("case_id", 1), ("anomaly_score", -1)])
+            self.collections['android_ml_anomalies'].create_index("label")
             
         except Exception as e:
             print(f"Warning: Could not create some indexes: {e}")
+
+    def delete_case_artifacts(self, case_id):
+        """Delete all artifacts for a case to avoid duplication."""
+        for name, collection in self.collections.items():
+            if name == 'cases':
+                continue
+            collection.delete_many({"case_id": case_id})
     
     def store_case_info(self, case_data):
         """Store case information"""
+        case_id = case_data.get("case_id", self._generate_case_id())
+        extraction_info = case_data.get("extraction_info", {})
         case_doc = {
-            "case_id": case_data.get("case_id", self._generate_case_id()),
-            "image_path": case_data["extraction_info"]["image_path"],
-            "extraction_time": case_data["extraction_info"]["extraction_time"],
-            "ntfs_offset": case_data["extraction_info"]["ntfs_offset"],
-            "user_profiles": case_data["extraction_info"]["user_profiles"],
+            "case_id": case_id,
+            "image_path": extraction_info.get("image_path"),
+            "extraction_time": extraction_info.get("extraction_time"),
+            "ntfs_offset": extraction_info.get("ntfs_offset"),
+            "user_profiles": extraction_info.get("user_profiles", []),
+            "format": extraction_info.get("format"),
             "summary": case_data.get("summary", {}),
-            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
             "status": "processed"
         }
-        
-        result = self.collections['cases'].insert_one(case_doc)
-        return str(result.inserted_id), case_doc["case_id"]
+
+        result = self.collections['cases'].update_one(
+            {"case_id": case_id},
+            {"$set": case_doc, "$setOnInsert": {"created_at": datetime.now().isoformat()}},
+            upsert=True
+        )
+        return str(result.upserted_id) if result.upserted_id else None, case_id
+
+    def store_android_artifacts(self, case_id, android_data):
+        """Store Android TAR artifacts"""
+        documents = []
+
+        for package in android_data.get("android_packages", []):
+            documents.append({
+                "case_id": case_id,
+                "artifact_type": "package",
+                "package_name": package,
+                "created_at": datetime.now().isoformat(),
+            })
+
+        def _add_files(items, artifact_type):
+            for item in items:
+                documents.append({
+                    "case_id": case_id,
+                    "artifact_type": artifact_type,
+                    "path": item.get("path"),
+                    "size": item.get("size"),
+                    "mtime": item.get("mtime"),
+                    "file_type": item.get("type"),
+                    "package_name": item.get("package_name"),
+                    "created_at": datetime.now().isoformat(),
+                })
+
+        _add_files(android_data.get("manifests", []), "manifest")
+        _add_files(android_data.get("app_databases", []), "app_database")
+        _add_files(android_data.get("shared_preferences", []), "shared_pref")
+        _add_files(android_data.get("webview_artifacts", []), "webview")
+        _add_files(android_data.get("calendar_databases", []), "calendar_db")
+        _add_files(android_data.get("sms_backups", []), "sms_backup")
+        _add_files(android_data.get("other_app_artifacts", []), "other_app_file")
+
+        if documents:
+            result = self.collections['android_artifacts'].insert_many(documents)
+            return len(result.inserted_ids)
+        return 0
+
+    def store_ml_anomalies(self, case_id, items, summary=None):
+        """Store ML inference results (top anomalies)."""
+        if case_id:
+            self.collections['ml_anomalies'].delete_many({"case_id": case_id})
+
+        documents = []
+        for item in items or []:
+            doc = {"case_id": case_id, "created_at": datetime.now().isoformat()}
+            doc.update(item)
+            documents.append(doc)
+
+        inserted = 0
+        if documents:
+            result = self.collections['ml_anomalies'].insert_many(documents)
+            inserted = len(result.inserted_ids)
+
+        if summary and case_id:
+            self.collections['cases'].update_one(
+                {"case_id": case_id},
+                {"$set": {"ml_inference": summary}}
+            )
+
+        return inserted
+
+    def store_android_ml_anomalies(self, case_id, items, summary=None):
+        """Store Android ML inference results."""
+        if case_id:
+            self.collections['android_ml_anomalies'].delete_many({"case_id": case_id})
+
+        documents = []
+        for item in items or []:
+            doc = {"case_id": case_id, "created_at": datetime.now().isoformat()}
+            doc.update(item)
+            documents.append(doc)
+
+        inserted = 0
+        if documents:
+            result = self.collections['android_ml_anomalies'].insert_many(documents)
+            inserted = len(result.inserted_ids)
+
+        if summary and case_id:
+            self.collections['cases'].update_one(
+                {"case_id": case_id},
+                {"$set": {"android_ml_inference": summary}}
+            )
+
+        return inserted
+
+    def upsert_case_record(self, case_id, case_details, summary=None, raw_file_info=None, status="created"):
+        """Create or update a case record in MongoDB."""
+        now = datetime.now().isoformat()
+        update_doc = {
+            "case_id": case_id,
+            "status": status,
+            "case_details": case_details or {},
+            "updated_at": now,
+        }
+        if summary is not None:
+            update_doc["summary"] = summary
+        if raw_file_info is not None:
+            update_doc["raw_file"] = raw_file_info
+
+        result = self.collections['cases'].update_one(
+            {"case_id": case_id},
+            {
+                "$set": update_doc,
+                "$setOnInsert": {"created_at": now},
+            },
+            upsert=True
+        )
+
+        return {
+            "matched_count": result.matched_count,
+            "modified_count": result.modified_count,
+            "upserted_id": str(result.upserted_id) if result.upserted_id else None,
+        }
     
     def store_browser_artifacts(self, case_id, browser_data):
         """Store browser artifacts"""
@@ -473,12 +636,24 @@ class ForensicMongoStorage:
         """Store all artifacts from JSON file"""
         with open(json_file_path, 'r') as f:
             data = json.load(f)
-        
+
         print("Storing forensic artifacts in MongoDB...")
+
+        # Clean existing artifacts for this case to avoid duplicates.
+        case_id = data.get("case_id")
+        if case_id:
+            self.delete_case_artifacts(case_id)
         
         # Store case info
         case_object_id, case_id = self.store_case_info(data)
         print(f"✓ Case stored with ID: {case_id}")
+
+        is_android = "android_packages" in data or data.get("extraction_info", {}).get("format") == "android_tar"
+        if is_android:
+            android_count = self.store_android_artifacts(case_id, data)
+            print(f"✓ Android artifacts stored: {android_count}")
+            print(f"\n🎉 All Android artifacts stored successfully for case: {case_id}")
+            return case_id
         
         # Store browser artifacts
         browser_count = self.store_browser_artifacts(case_id, data["browser_artifacts"])

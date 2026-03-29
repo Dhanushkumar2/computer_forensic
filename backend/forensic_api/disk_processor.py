@@ -5,6 +5,7 @@ Handles disk image upload, extraction, and artifact storage
 import os
 import sys
 import json
+import tarfile
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -15,7 +16,8 @@ parent_dir = os.path.dirname(os.path.dirname(current_dir))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from extraction.disk_extractor import ForensicDiskExtractor
+from extraction.forensic_extractor import ForensicExtractor
+from extraction.android_tar_extractor import AndroidTarExtractor
 from database.mongodb_storage import ForensicMongoStorage
 
 logger = logging.getLogger(__name__)
@@ -45,7 +47,6 @@ class DiskImageProcessor:
         self.extracted_dir.mkdir(parents=True, exist_ok=True)
         self.processed_dir.mkdir(parents=True, exist_ok=True)
         
-        self.extractor = ForensicDiskExtractor()
         self.storage = ForensicMongoStorage()
     
     def list_available_images(self):
@@ -53,7 +54,7 @@ class DiskImageProcessor:
         if not self.samples_dir.exists():
             return []
         
-        image_extensions = ['.E01', '.dd', '.raw', '.img', '.001']
+        image_extensions = ['.E01', '.dd', '.raw', '.img', '.001', '.tar']
         images = []
         
         for file in self.samples_dir.iterdir():
@@ -88,34 +89,37 @@ class DiskImageProcessor:
             
             # Extract artifacts
             logger.info("Extracting artifacts from disk image...")
-            artifacts = self.extractor.extract_all_artifacts(
-                disk_image_path,
-                str(case_output_dir)
-            )
-            
-            # Count artifacts by type
-            artifact_counts = {}
-            for artifact_type, artifact_list in artifacts.items():
-                artifact_counts[artifact_type] = len(artifact_list) if artifact_list else 0
-            
-            # Save to JSON
+            extractor = None
+            try:
+                if tarfile.is_tarfile(disk_image_path):
+                    extractor = AndroidTarExtractor(disk_image_path)
+                    artifacts = extractor.extract_all_artifacts()
+                else:
+                    extractor = ForensicExtractor(disk_image_path)
+                    artifacts = extractor.extract_all_artifacts()
+            finally:
+                if extractor and hasattr(extractor, "close"):
+                    extractor.close()
+            if not artifacts:
+                raise RuntimeError("Artifact extraction returned no data")
+
+            # Add case context to serialized payload
+            artifacts['case_id'] = case_id
+            artifacts['disk_image'] = os.path.basename(disk_image_path)
+            artifacts['processed_at'] = datetime.now().isoformat()
+
+            # Build count summary for API response
+            summary = artifacts.get('summary', {})
+            artifact_counts = {
+                key: value for key, value in summary.items()
+                if key.startswith('total_') and isinstance(value, int)
+            }
+
+            # Save to JSON (storage module expects top-level artifact sections)
             json_output_path = self.processed_dir / f"{case_id}_artifacts.json"
             logger.info(f"Saving artifacts to {json_output_path}")
-            
-            # Prepare artifacts for JSON serialization
-            serializable_artifacts = {}
-            for artifact_type, artifact_list in artifacts.items():
-                if artifact_list:
-                    serializable_artifacts[artifact_type] = artifact_list
-            
             with open(json_output_path, 'w') as f:
-                json.dump({
-                    'case_id': case_id,
-                    'disk_image': os.path.basename(disk_image_path),
-                    'processed_at': datetime.now().isoformat(),
-                    'artifact_counts': artifact_counts,
-                    'artifacts': serializable_artifacts
-                }, f, indent=2, default=str)
+                json.dump(artifacts, f, indent=2, default=str)
             
             # Store in MongoDB if requested
             if output_format == 'mongodb' or output_format == 'both':
@@ -130,7 +134,7 @@ class DiskImageProcessor:
                 'disk_image': os.path.basename(disk_image_path),
                 'json_output': str(json_output_path),
                 'artifact_counts': artifact_counts,
-                'total_artifacts': sum(artifact_counts.values()),
+                'total_artifacts': sum(artifact_counts.values()) if artifact_counts else 0,
                 'processed_at': datetime.now().isoformat(),
             }
             

@@ -1,97 +1,83 @@
-// Vibrant color palette for forensic investigation app
-// White background with colorful, professional accents
-
 export const colors = {
-  // Primary colors - Vibrant blues
   primary: {
-    main: '#2563EB',      // Vibrant blue
-    light: '#60A5FA',     // Light blue
-    dark: '#1E40AF',      // Dark blue
-    contrastText: '#FFFFFF',
+    main: '#00E5FF',
+    light: '#6EFFFF',
+    dark: '#00ACC1',
+    contrastText: '#06121F',
   },
-  
-  // Secondary colors - Purple accents
   secondary: {
-    main: '#8B5CF6',      // Vibrant purple
-    light: '#A78BFA',     // Light purple
-    dark: '#6D28D9',      // Dark purple
-    contrastText: '#FFFFFF',
+    main: '#00FF9D',
+    light: '#70FFCB',
+    dark: '#00C46E',
+    contrastText: '#051B12',
   },
-  
-  // Accent colors - Vibrant and diverse
   accent: {
-    cyan: '#06B6D4',      // Cyan
-    teal: '#14B8A6',      // Teal
-    emerald: '#10B981',   // Emerald green
-    amber: '#F59E0B',     // Amber
-    rose: '#F43F5E',      // Rose
-    pink: '#EC4899',      // Pink
-    indigo: '#6366F1',    // Indigo
-    orange: '#F97316',    // Orange
+    cyan: '#00E5FF',
+    teal: '#00BFA5',
+    emerald: '#00FF9D',
+    amber: '#FFC857',
+    rose: '#FF4D8D',
+    pink: '#FF5CD6',
+    indigo: '#5B8CFF',
+    orange: '#FF8A3D',
+    violet: '#9B6DFF',
+    warm: '#FF8A3D',
   },
-  
-  // Background colors - White with subtle shades
   background: {
-    default: '#FFFFFF',   // Pure white
-    paper: '#FFFFFF',     // White
-    light: '#F8FAFC',     // Very light gray-blue
-    lighter: '#F1F5F9',   // Light gray-blue
-    card: '#FAFBFC',      // Slightly off-white
-    hover: '#F3F4F6',     // Hover state
+    default: '#081122',
+    paper: '#0D1A2E',
+    light: '#12233C',
+    lighter: '#1A2F4E',
+    card: '#10243F',
+    hover: '#173253',
+    dark: '#040B17',
   },
-  
-  // Text colors - Dark and readable
   text: {
-    primary: '#0F172A',   // Very dark blue-gray
-    secondary: '#475569', // Medium gray
-    disabled: '#94A3B8',  // Light gray
-    hint: '#CBD5E1',      // Very light gray
+    primary: '#E8F4FF',
+    secondary: '#9EB7D1',
+    disabled: '#5A7594',
+    hint: '#6F88A6',
   },
-  
-  // Status colors - Vibrant and clear
   status: {
-    critical: '#EF4444',  // Bright red
-    warning: '#F59E0B',   // Amber
-    info: '#3B82F6',      // Blue
-    success: '#10B981',   // Green
+    critical: '#FF4D6D',
+    warning: '#FFC857',
+    info: '#00E5FF',
+    success: '#00FF9D',
+    error: '#FF4D6D',
   },
-  
-  // Chart colors - Vibrant and distinguishable
   chart: [
-    '#2563EB',  // Blue
-    '#8B5CF6',  // Purple
-    '#EC4899',  // Pink
-    '#F59E0B',  // Amber
-    '#10B981',  // Green
-    '#06B6D4',  // Cyan
-    '#F97316',  // Orange
-    '#6366F1',  // Indigo
-    '#14B8A6',  // Teal
-    '#F43F5E',  // Rose
+    '#00E5FF',
+    '#00FF9D',
+    '#FF8A3D',
+    '#9B6DFF',
+    '#5B8CFF',
+    '#FF4D8D',
+    '#FFC857',
+    '#00BFA5',
+    '#70FFCB',
+    '#7DD3FC',
   ],
-  
-  // Gradient combinations - Vibrant gradients
   gradients: {
-    primary: 'linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%)',
-    success: 'linear-gradient(135deg, #10B981 0%, #14B8A6 100%)',
-    warning: 'linear-gradient(135deg, #F59E0B 0%, #F97316 100%)',
-    danger: 'linear-gradient(135deg, #EF4444 0%, #F43F5E 100%)',
-    cool: 'linear-gradient(135deg, #06B6D4 0%, #2563EB 100%)',
-    warm: 'linear-gradient(135deg, #F97316 0%, #EC4899 100%)',
+    primary: 'linear-gradient(135deg, #00E5FF 0%, #5B8CFF 48%, #9B6DFF 100%)',
+    success: 'linear-gradient(135deg, #00FF9D 0%, #00BFA5 100%)',
+    warning: 'linear-gradient(135deg, #FFC857 0%, #FF8A3D 100%)',
+    danger: 'linear-gradient(135deg, #FF4D6D 0%, #FF4D8D 100%)',
+    cool: 'linear-gradient(135deg, #00E5FF 0%, #00BFA5 100%)',
+    warm: 'linear-gradient(135deg, #FF8A3D 0%, #FFC857 100%)',
+    dark: 'linear-gradient(160deg, #040B17 0%, #081122 45%, #12233C 100%)',
   },
-  
-  // Artifact type colors - Specific colors for each artifact type
   artifacts: {
-    browser: '#3B82F6',      // Blue
-    registry: '#8B5CF6',     // Purple
-    filesystem: '#10B981',   // Green
-    network: '#06B6D4',      // Cyan
-    usb: '#F59E0B',          // Amber
-    events: '#EC4899',       // Pink
-    deleted: '#EF4444',      // Red
-    timeline: '#6366F1',     // Indigo
-    programs: '#14B8A6',     // Teal
-    activity: '#F97316',     // Orange
+    browser: '#00E5FF',
+    registry: '#9B6DFF',
+    filesystem: '#00FF9D',
+    network: '#5B8CFF',
+    usb: '#FFC857',
+    events: '#FF5CD6',
+    deleted: '#FF4D6D',
+    timeline: '#7DD3FC',
+    programs: '#00BFA5',
+    activity: '#FF8A3D',
+    android: '#70FFCB',
   },
 };
 
